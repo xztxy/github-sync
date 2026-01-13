@@ -101,8 +101,7 @@ const syncRepositories = async () => {
         // 尝试使用指定分支克隆
         await git.clone(repoUrl, tempDir, {
           '--single-branch': true,
-          '--branch': actualSourceBranch,
-          '--depth': 1
+          '--branch': actualSourceBranch
         });
       } catch (cloneError) {
         if (cloneError.message.includes('Remote branch') && cloneError.message.includes('not found')) {
@@ -133,8 +132,7 @@ const syncRepositories = async () => {
               // 使用默认分支重新克隆
               await git.clone(repoUrl, tempDir, {
                 '--single-branch': true,
-                '--branch': actualSourceBranch,
-                '--depth': 1
+                '--branch': actualSourceBranch
               });
             } catch (apiError) {
               console.error(`   ❌ Failed to get default branch: ${apiError.message}`);
