@@ -3,183 +3,157 @@ const { Octokit } = require('@octokit/rest');
 const fs = require('fs');
 const path = require('path');
 
-// 配置文件路径
-const CONFIG_FILE_PATH = path.join(__dirname, 'sync-config.json');
+const CONFIG_FILE = path.join(__dirname, 'sync-config.json');
+const TEMP_DIR = path.join(__dirname, 'temp');
 
-// 从配置文件或环境变量获取配置
-let sourceRepos = [];
-let configSource = 'environment variables';
+const loadConfig = () => {
+  if (!fs.existsSync(CONFIG_FILE)) {
+    console.error('❌ 配置文件不存在: ' + CONFIG_FILE);
+    process.exit(1);
+  }
 
-// 首先尝试从配置文件读取
-if (fs.existsSync(CONFIG_FILE_PATH)) {
   try {
-    const configContent = fs.readFileSync(CONFIG_FILE_PATH, 'utf8');
-    const config = JSON.parse(configContent);
-    sourceRepos = config.sourceRepos || [];
-    configSource = 'configuration file';
-    console.log(`📄 Loaded configuration from ${CONFIG_FILE_PATH}`);
-  } catch (error) {
-    console.error(`⚠️  Failed to read configuration file: ${error.message}`);
-    console.error('   Falling back to environment variables');
-  }
-}
-
-// 如果配置文件未提供有效配置，从环境变量获取
-if (!Array.isArray(sourceRepos) || sourceRepos.length === 0) {
-  sourceRepos = process.env.SOURCE_REPOS ? JSON.parse(process.env.SOURCE_REPOS) : [];
-  configSource = 'environment variables';
-}
-
-// 使用当前仓库作为目标仓库，GitHub Actions自动提供GITHUB_REPOSITORY环境变量
-const targetRepo = process.env.TARGET_REPO || process.env.GITHUB_REPOSITORY;
-const githubToken = process.env.GITHUB_TOKEN;
-
-// 验证配置
-if (!Array.isArray(sourceRepos) || sourceRepos.length === 0) {
-  console.error('Error: SOURCE_REPOS must be a non-empty array');
-  console.error('Please either:');
-  console.error('  1. Create sync-config.json file with sourceRepos array, or');
-  console.error('  2. Set SOURCE_REPOS environment variable with proper JSON format');
-  process.exit(1);
-}
-
-if (!targetRepo || !githubToken) {
-  console.error('Error: Missing required environment variables');
-  if (!targetRepo) {
-    console.error('  - TARGET_REPO: Not provided and GITHUB_REPOSITORY is not available (are you running in GitHub Actions?)');
-  }
-  if (!githubToken) {
-    console.error('  - GITHUB_TOKEN: Please set this environment variable');
-  }
-  process.exit(1);
-}
-
-console.log('Starting repository sync...');
-console.log(`Config Source: ${configSource}`);
-console.log(`Target Repo: ${targetRepo}`);
-console.log(`Source Repos Count: ${sourceRepos.length}`);
-console.log('Source Repos:');
-sourceRepos.forEach((repo, index) => {
-  console.log(`  ${index + 1}. ${repo.repoName}: ${repo.repoUrl} (${repo.sourceBranch}) -> ${repo.targetBranch}`);
-});
-
-// 初始化 Octokit
-const octokit = new Octokit({
-  auth: githubToken
-});
-
-// 主同步函数
-const syncRepositories = async () => {
-  try {
-    // 遍历每个源仓库
-    for (const repoConfig of sourceRepos) {
-      const {
-        repoUrl,
-        sourceBranch = 'main',
-        targetBranch = path.basename(repoUrl, '.git'),
-        repoName = path.basename(repoUrl, '.git')
-      } = repoConfig;
-
-      console.log(`\n🔄 Processing repository: ${repoName}`);
-      console.log(`   Source: ${repoUrl} (${sourceBranch})`);
-      console.log(`   Target: ${targetRepo} (${targetBranch})`);
-
-      // 为每个仓库创建独立的临时目录
-      const tempDir = path.join(__dirname, 'temp', repoName);
-      
-      // 确保临时目录存在
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-
-      // 克隆源仓库
-      console.log(`   Cloning repository: ${repoUrl}`);
-      let git = simpleGit();
-      let actualSourceBranch = sourceBranch;
-      
-      try {
-        // 尝试使用指定分支克隆
-        await git.clone(repoUrl, tempDir, {
-          '--single-branch': true,
-          '--branch': actualSourceBranch
-        });
-      } catch (cloneError) {
-        if (cloneError.message.includes('Remote branch') && cloneError.message.includes('not found')) {
-          console.log(`   ⚠️  Branch ${actualSourceBranch} not found, trying to get default branch`);
-          
-          // 解析仓库所有者和名称
-          // Handle URLs with or without .git suffix
-          const repoMatch = repoUrl.match(/https:\/\/github\.com\/(.*?)\/(.*?)(?:\.git)?$/);
-          if (repoMatch) {
-            const [, owner, repo] = repoMatch;
-            try {
-              // 使用 Octokit 获取默认分支
-              const repoInfo = await octokit.repos.get({
-                owner,
-                repo
-              });
-              actualSourceBranch = repoInfo.data.default_branch;
-              console.log(`   🔍 Found default branch: ${actualSourceBranch}`);
-              
-              // 清理失败的克隆尝试
-              if (fs.existsSync(tempDir)) {
-                fs.rmSync(tempDir, { recursive: true, force: true });
-              }
-              
-              // 重新创建临时目录
-              fs.mkdirSync(tempDir, { recursive: true });
-              
-              // 使用默认分支重新克隆
-              await git.clone(repoUrl, tempDir, {
-                '--single-branch': true,
-                '--branch': actualSourceBranch
-              });
-            } catch (apiError) {
-              console.error(`   ❌ Failed to get default branch: ${apiError.message}`);
-              throw cloneError; // 重新抛出原始错误
-            }
-          } else {
-            throw cloneError; // 重新抛出原始错误
-          }
-        } else {
-          throw cloneError; // 其他错误，直接抛出
-        }
-      }
-
-      const repoGit = simpleGit(tempDir);
-
-      // 拉取最新代码
-      await repoGit.pull('origin', actualSourceBranch);
-
-      // 推送代码到目标仓库的目标分支
-      const targetUrl = `https://x-access-token:${githubToken}@github.com/${targetRepo}.git`;
-      await repoGit.push(targetUrl, `${actualSourceBranch}:${targetBranch}`, {
-        '--force': true
-      });
-
-      console.log(`   ✅ Successfully synced ${repoName}: ${actualSourceBranch} -> ${targetBranch}`);
-
-      // 清理当前仓库的临时目录
-      if (fs.existsSync(tempDir)) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      }
+    const content = fs.readFileSync(CONFIG_FILE, 'utf8');
+    const config = JSON.parse(content);
+    
+    if (!config.sourceRepos || !Array.isArray(config.sourceRepos) || config.sourceRepos.length === 0) {
+      console.error('❌ 配置文件中 sourceRepos 数组为空或格式错误');
+      process.exit(1);
     }
     
-    console.log('\n✅ All repositories synced successfully!');
-    
+    return config;
   } catch (error) {
-    console.error('❌ Sync failed:', error.message);
-    console.error(error.stack);
+    console.error('❌ 读取配置文件失败: ' + error.message);
     process.exit(1);
+  }
+};
+
+const getRepoInfo = (url) => {
+  const match = url.match(/https:\/\/github\.com\/(.*?)\/(.*?)(?:\.git)?$/);
+  if (!match) {
+    throw new Error('无效的 GitHub 仓库 URL: ' + url);
+  }
+  return { owner: match[1], repo: match[2] };
+};
+
+const getDefaultBranch = async (octokit, owner, repo) => {
+  try {
+    const result = await octokit.repos.get({ owner, repo });
+    return result.data.default_branch;
+  } catch (error) {
+    console.error('   ❌ 获取默认分支失败: ' + error.message);
+    throw error;
+  }
+};
+
+const cloneRepository = async (url, targetDir, branch) => {
+  const git = simpleGit();
+  
+  try {
+    await git.clone(url, targetDir, {
+      '--single-branch': true,
+      '--branch': branch
+    });
+    return branch;
+  } catch (error) {
+    if (error.message.includes('not found') || error.message.includes('does not exist')) {
+      console.log(`   ⚠️  分支 ${branch} 不存在，尝试获取默认分支`);
+      return null;
+    }
+    throw error;
+  }
+};
+
+const syncRepository = async (repoConfig, octokit, targetRepo, githubToken) => {
+  const { repoUrl, sourceBranch, targetBranch, repoName } = repoConfig;
+  const tempDir = path.join(TEMP_DIR, repoName);
+  
+  console.log(`\n🔄 同步仓库: ${repoName}`);
+  console.log(`   源: ${repoUrl} (${sourceBranch})`);
+  console.log(`   目标: ${targetRepo} (${targetBranch})`);
+
+  let actualBranch = sourceBranch;
+
+  try {
+    actualBranch = await cloneRepository(repoUrl, tempDir, actualBranch);
+    
+    if (!actualBranch) {
+      const { owner, repo } = getRepoInfo(repoUrl);
+      actualBranch = await getDefaultBranch(octokit, owner, repo);
+      console.log(`   🔍 找到默认分支: ${actualBranch}`);
+      
+      await cloneRepository(repoUrl, tempDir, actualBranch);
+    }
+
+    const repoGit = simpleGit(tempDir);
+    await repoGit.pull('origin', actualBranch);
+
+    const targetUrl = `https://x-access-token:${githubToken}@github.com/${targetRepo}.git`;
+    await repoGit.push(targetUrl, `${actualBranch}:${targetBranch}`, {
+      '--force': true
+    });
+
+    console.log(`   ✅ 同步成功: ${actualBranch} -> ${targetBranch}`);
+
+  } catch (error) {
+    console.error(`   ❌ 同步失败: ${error.message}`);
+    throw error;
   } finally {
-    // 清理主临时目录
-    const mainTempDir = path.join(__dirname, 'temp');
-    if (fs.existsSync(mainTempDir)) {
-      fs.rmSync(mainTempDir, { recursive: true, force: true });
-      console.log('Cleaned up main temp directory');
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
   }
 };
 
-// 运行同步
-syncRepositories();
+const main = async () => {
+  const config = loadConfig();
+  const { sourceRepos, targetRepo } = config;
+  const githubToken = process.env.GITHUB_TOKEN;
+
+  if (!githubToken) {
+    console.error('❌ 缺少 GITHUB_TOKEN 环境变量');
+    process.exit(1);
+  }
+
+  if (!targetRepo) {
+    console.error('❌ 配置文件中缺少 targetRepo 字段');
+    process.exit(1);
+  }
+
+  const octokit = new Octokit({ auth: githubToken });
+
+  console.log('🚀 开始同步仓库...');
+  console.log(`📋 目标仓库: ${targetRepo}`);
+  console.log(`📦 源仓库数量: ${sourceRepos.length}`);
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const repoConfig of sourceRepos) {
+    try {
+      await syncRepository(repoConfig, octokit, targetRepo, githubToken);
+      successCount++;
+    } catch (error) {
+      failCount++;
+      console.error(`\n❌ 仓库 ${repoConfig.repoName} 同步失败，继续处理下一个仓库`);
+    }
+  }
+
+  console.log('\n📊 同步统计:');
+  console.log(`   ✅ 成功: ${successCount}`);
+  console.log(`   ❌ 失败: ${failCount}`);
+  console.log(`   📦 总计: ${sourceRepos.length}`);
+
+  if (failCount > 0) {
+    console.log('\n⚠️  部分仓库同步失败');
+    process.exit(1);
+  } else {
+    console.log('\n🎉 所有仓库同步成功！');
+  }
+};
+
+main().catch(error => {
+  console.error('\n❌ 程序异常:', error.message);
+  console.error(error.stack);
+  process.exit(1);
+});

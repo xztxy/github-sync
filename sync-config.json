@@ -1,4 +1,5 @@
 {
+  "targetRepo": "xztxy/github-sync",
   "sourceRepos": [
     {
       "repoUrl": "https://github.com/Zalafina/QKeyMapper",
