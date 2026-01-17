@@ -100,13 +100,13 @@ while IFS= read -r SOURCE_REPO; do
     echo "📦 Source: $SOURCE_REPO"
     echo "🎯 Target: $TARGET_REPO"
     echo "========================================="
+    
     {
         echo "========================================="
         echo "## 📦 $SOURCE_REPO → $TARGET_REPO"
         echo "- Source: $SOURCE_URL"
         echo "- Target: https://github.com/$TARGET_REPO"
-        echo ""
-    } >> "$REPORT_FILE"
+        echo ""} >> "$REPORT_FILE"
     
     # 创建目标仓库
     if ! create_target_repo "$TARGET_REPO" "Mirror of $SOURCE_REPO"; then
@@ -132,7 +132,6 @@ while IFS= read -r SOURCE_REPO; do
         echo ""
         continue
     fi
-    
     BRANCH_LIST=$(echo "$REMOTE_BRANCHES" | awk '{print $2}' | sed 's|refs/heads/||' | sort)
     BRANCH_COUNT=$(echo "$BRANCH_LIST" | wc -l)
     
@@ -157,6 +156,7 @@ while IFS= read -r SOURCE_REPO; do
         echo '```'
         echo ""
     } >> "$REPORT_FILE"
+    
     REPO_SUCCESS=0
     REPO_FAILED=0
     
@@ -167,7 +167,8 @@ while IFS= read -r SOURCE_REPO; do
         TOTAL_BRANCHES=$((TOTAL_BRANCHES + 1))
         
         echo "-------------------------------------------"
-        echo "🌿 Branch: $BRANCH_NAME"TEMP_DIR=$(mktemp -d)
+        echo "🌿 Branch: $BRANCH_NAME"
+        TEMP_DIR=$(mktemp -d)
         ORIGINAL_DIR=$(pwd)
         
         cd "$TEMP_DIR" || {
@@ -268,8 +269,7 @@ while IFS= read -r SOURCE_REPO; do
                 
                 FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
                 REPO_FAILED=$((REPO_FAILED + 1))
-            fi
-        else
+            fielse
             echo "   ❌ Clone failed (Exit: $CLONE_EXIT)"
             echo "   📄 Clone output:"
             echo "$CLONE_OUTPUT" | sed 's/^/      /'
@@ -305,8 +305,7 @@ while IFS= read -r SOURCE_REPO; do
     {
         echo ""
         echo "**Summary:** ✅ $REPO_SUCCESS / ❌ $REPO_FAILED"
-        echo ""
-    } >> "$REPORT_FILE"
+        echo ""} >> "$REPORT_FILE"
     
     echo ""
 done <<< "$SOURCE_REPOS"
@@ -370,8 +369,7 @@ cat "$REPORT_FILE"
 if [ $FAILED_BRANCHES -gt 0 ]; then
     echo ""
     echo "⚠️  $FAILED_BRANCHES branches failed"
-    echo ""
-    echo "📄 Error Log Preview (first 50 lines):"
+    echo ""echo "📄 Error Log Preview (first 50 lines):"
     echo "========================================="
     head -50 "$ERROR_LOG"
     echo "========================================="
