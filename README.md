@@ -4,120 +4,40 @@
 
 ## 功能特性
 
-- 📅 每天自动运行（可自定义时间）
-- 🔄 支持将源仓库的多个分支同步到目标仓库的不同分支
-- 🎯 精确的分支映射配置
-- 🔧 支持手动触发同步
-- 📋 详细的日志输出
+📅 每天自动运行（可自定义时间）
+🔄 支持将源仓库的多个分支同步到目标仓库的不同分支
+🎯 精确的分支映射配置
+🔧 支持手动触发同步
+📋 详细的日志输出
+🗑️ 自动排除 `.github/workflows` 目录以避免权限问题
 
 ## 配置说明
 
 ### 1. 环境变量
 
-在GitHub仓库的`Settings > Secrets and variables > Actions`中添加以下 secrets：
+在GitHub仓库的 `Settings > Secrets and variables > Actions` 中添加以下 secrets：
 
 | 变量名 | 说明 | 示例 |
-|--------|------|------|
-| `SOURCE_REPOS` | 源仓库配置（JSON格式），支持多个源仓库 | `[{"repoUrl":"https://github.com/username/repo-a.git","sourceBranch":"main","targetBranch":"repo-a"}]` |
-| `GITHUB_TOKEN` | GitHub Token（自动提供，无需手动添加） | - |
+|---------|------|--------|
+| SOURCE_REPOS | 源仓库配置（JSON格式），支持多个源仓库 | `[{"repoUrl":"https://github.com/username/repo-a.git","sourceBranch":"main","targetBranch":"repo-a"}]` |
+| GITHUB_TOKEN | GitHub Token（自动提供，无需手动添加） | - |
 
-**注意**：目标仓库默认为当前仓库，无需配置`TARGET_REPO`环境变量。
+**注意**：目标仓库默认为当前仓库，无需配置 `TARGET_REPO` 环境变量。
 
 ### 2. 源仓库配置
 
-`SOURCE_REPOS`是一个JSON数组，用于配置多个源仓库到目标分支的映射关系。每个源仓库配置包含以下字段：
+`SOURCE_REPOS` 是一个 JSON 数组，用于配置多个源仓库到目标分支的映射关系。每个源仓库配置包含以下字段：
 
 | 字段名 | 说明 | 默认值 | 示例 |
-|--------|------|--------|------|
-| `repoUrl` | 源仓库地址（HTTPS格式） | 必填 | `https://github.com/username/repo-a.git` |
-| `sourceBranch` | 源仓库的分支 | `main` | `main` |
-| `targetBranch` | 目标仓库的分支 | 源仓库名称 | `repo-a` |
-| `repoName` | 仓库显示名称 | 源仓库名称 | `repo-a` |
+|---------|------|----------|--------|
+| repoUrl | 源仓库地址（HTTPS格式） | 必填 | `https://github.com/username/repo-a.git` |
+| sourceBranch | 源仓库的分支 | `main` | `main` |
+| targetBranch | 目标仓库的分支 | 源仓库名称 | `repo-a` |
+| repoName | 仓库显示名称 | 源仓库名称 | `repo-a` |
 
-例如，将4个开源仓库同步到目标仓库的不同分支：
+### 配置示例
 
-```json
-[
-  {
-    "repoUrl": "https://github.com/username/repo-a.git",
-    "sourceBranch": "main",
-    "targetBranch": "repo-a"
-  },
-  {
-    "repoUrl": "https://github.com/username/repo-b.git",
-    "sourceBranch": "main",
-    "targetBranch": "repo-b"
-  },
-  {
-    "repoUrl": "https://github.com/username/repo-c.git",
-    "sourceBranch": "main",
-    "targetBranch": "repo-c"
-  },
-  {
-    "repoUrl": "https://github.com/username/repo-d.git",
-    "sourceBranch": "main",
-    "targetBranch": "repo-d"
-  }
-]
-```
-
-## GitHub Actions设置
-
-### 运行时间
-
-默认情况下，工作流每天UTC时间00:00运行。如需修改运行时间，可编辑`.github/workflows/sync.yml`文件中的cron表达式：
-
-```yaml
-on:
-  schedule:
-    - cron: '0 0 * * *'  # 每天UTC时间00:00运行
-```
-
-### 手动触发
-
-工作流支持手动触发，可通过GitHub仓库的`Actions`选项卡手动运行。
-
-## 使用步骤
-
-1. **Fork或克隆本仓库**
-
-2. **配置GitHub Secrets**
-   - 进入仓库的`Settings > Secrets and variables > Actions`
-   - 添加`SOURCE_REPOS` secret
-
-3. **启用GitHub Actions**
-   - 确保仓库的GitHub Actions已启用
-
-4. **等待自动运行或手动触发**
-   - 每天定时自动运行
-   - 或在`Actions`选项卡手动触发
-
-## 本地开发
-
-### 安装依赖
-
-```bash
-npm ci
-```
-
-### 本地运行
-
-```bash
-# 设置环境变量
-export SOURCE_REPOS='[{"repoUrl":"https://github.com/username/repo-a.git","sourceBranch":"main","targetBranch":"repo-a"},{"repoUrl":"https://github.com/username/repo-b.git","sourceBranch":"main","targetBranch":"repo-b"}]'
-# TARGET_REPO 可选，如果不设置，需要在 GitHub Actions 环境中运行
-export TARGET_REPO="username/target-repo"
-export GITHUB_TOKEN="your-github-token"
-
-# 运行同步脚本
-node sync.js
-```
-
-## 使用示例
-
-以下是将6个指定仓库同步到目标仓库的配置示例：
-
-### 配置JSON
+将多个开源仓库同步到目标仓库的不同分支：
 
 ```json
 [
@@ -166,49 +86,132 @@ node sync.js
 ]
 ```
 
-### 配置说明
+### 仓库说明
 
 | 仓库 | 源分支 | 目标分支 | 说明 |
-|------|--------|----------|------|
+|------|---------|-----------|------|
 | QKeyMapper | main | qkeymapper | 按键映射工具 |
 | lede | master | lede | Lean's LEDE source |
-| immortalwrt | master | immortalwrt | OpenWrt变体 |
+| immortalwrt | master | immortalwrt | OpenWrt 变体 |
 | x-wrt | master | x-wrt | OpenWrt fork |
 | fanchmwrt | main | fanchmwrt | 家庭防火墙系统 |
-| openwrt-packages | master | openwrt-packages | OpenWrt常用软件包 |
-| small-package | master | small-package | OpenWrt小软件包 |
+| openwrt-packages | master | openwrt-packages | OpenWrt 常用软件包 |
+| small-package | master | small-package | OpenWrt 小软件包 |
+
+## GitHub Actions 设置
+
+### 运行时间
+
+默认情况下，工作流每天 UTC 时间 00:00 运行。如需修改运行时间，可编辑 `.github/workflows/sync.yml` 文件中的 cron 表达式：
+
+```yaml
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 时间 00:00 运行
+```
+
+### 手动触发
+
+工作流支持手动触发，可通过 GitHub 仓库的 Actions 选项卡手动运行。
+
+## 使用步骤
+
+### 1. Fork 或克隆本仓库
+
+```bash
+git clone https://github.com/xztxy/github-sync.git
+cd github-sync
+```
+
+### 2. 配置 GitHub Secrets
+
+进入仓库的 `Settings > Secrets and variables > Actions`
+
+添加 `SOURCE_REPOS` secret，值为上述的 JSON 配置
+
+### 3. 启用 GitHub Actions
+
+确保仓库的 GitHub Actions 已启用
+
+### 4. 等待自动运行或手动触发
+
+- 每天定时自动运行
+- 或在 Actions 选项卡手动触发
+
+## 本地开发
+
+### 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 本地运行
+
+```bash
+# 设置环境变量
+export SOURCE_REPOS='[{"repoUrl":"https://github.com/username/repo-a.git","sourceBranch":"main","targetBranch":"repo-a"}]'
+export GITHUB_TOKEN="your-github-token"
+
+# 运行同步脚本
+python sync.py
+```
 
 ## 注意事项
 
-1. **权限要求**
-   - 确保GitHub Token具有源仓库的读取权限和目标仓库的写入权限
-   - 对于公共仓库，默认的`GITHUB_TOKEN`通常已足够
+### 权限要求
 
-2. **分支存在性**
-   - 脚本会检查源分支是否存在，不存在的分支会跳过
-   - 目标分支会自动创建（如果不存在）
+确保 GitHub Token 具有源仓库的读取权限和目标仓库的写入权限
 
-3. **强制推送**
-   - 脚本使用`--force`选项推送，确保目标分支与源分支完全一致
-   - 请谨慎使用，避免覆盖目标分支的重要更改
+对于公共仓库，默认的 `GITHUB_TOKEN` 通常已足够
 
-4. **日志查看**
-   - 同步日志可在GitHub Actions的工作流运行记录中查看
-   - 包含详细的同步过程和结果
+### 分支存在性
 
-5. **大型仓库处理**
-   - 对于大型仓库，同步可能需要较长时间
-   - 脚本使用`--depth 1`参数克隆，只获取最新提交，提高效率
+脚本会检查源分支是否存在，不存在的分支会跳过
 
-## 示例工作流运行
+目标分支会自动创建（如果不存在）
 
-1. 遍历每个源仓库配置
-2. 为每个仓库创建独立的临时目录
-3. 克隆源仓库的指定分支
-4. 拉取最新代码
-5. 推送代码到目标仓库的指定分支
-6. 清理临时目录
+### 强制推送
 
-## License
+脚本使用 `--force` 选项推送，确保目标分支与源分支完全一致
 
-MIT
+请谨慎使用，避免覆盖目标分支的重要更改
+
+### 工作流文件
+
+脚本会自动删除 `.github/workflows` 目录，以避免 GitHub Token 权限问题
+
+### 日志查看
+
+同步日志可在 GitHub Actions 的工作流运行记录中查看
+
+## 技术栈
+
+- **Python 3.11+**
+- **PyGithub** - GitHub API 客户端
+- **subprocess** - Git 命令执行
+- **pathlib** - 路径处理
+
+## 许可证
+
+MIT License
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 更新日志
+
+### v2.0.0 (2026-01-17)
+
+- 🔄 重构为 Python 版本
+- ✅ 修复工作流文件权限问题
+- 📝 更新 GitHub Actions 工作流
+- 📚 添加完整的 README 文档
+
+### v1.0.0
+
+- 🎉 初始版本发布
+- 📅 支持定时同步
+- 🔧 支持手动触发
+- 🗑️ 自动排除工作流文件
