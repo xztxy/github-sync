@@ -68,10 +68,9 @@ const removeWorkflows = async (repoGit) => {
   const workflowsDir = path.join(repoGit.cwd, '.github', 'workflows');
   if (fs.existsSync(workflowsDir)) {
     console.log('   🗑️  删除 .github/workflows 目录（避免权限问题）');
-    fs.rmSync(workflowsDir, { recursive: true, force: true });
     
     try {
-      await repoGit.raw(['rm', '-r', '--cached', '.github/workflows']);
+      await repoGit.rm(['-r', '-f', '.github/workflows']);
       console.log('   🧹 从 Git 索引中移除工作流文件');
     } catch (error) {
       console.log('   ⚠️  清理 Git 索引时出错（可忽略）:', error.message);
