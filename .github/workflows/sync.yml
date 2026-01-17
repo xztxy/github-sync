@@ -17,21 +17,17 @@ jobs:
     
     permissions:
       contents: write
-      actions: read
     
     steps:
-      - name: Checkout sync repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
       
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Sync Bot"
           git config --global user.email "sync-bot@github.com"
-          git config --global core.compression 0
-          git config --global http.postBuffer 524288000
       
       - name: Install dependencies
         run: |
@@ -40,7 +36,7 @@ jobs:
       
       - name: Sync repositories
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           chmod +x scripts/sync.sh
           ./scripts/sync.sh
@@ -52,17 +48,7 @@ jobs:
           if [ -f sync_report.txt ]; then
             echo "## 📊 Sync Report" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            
-            # 显示统计
-            echo "### Statistics" >> $GITHUB_STEP_SUMMARY
-            grep -A 10 "Final Summary" sync_report.txt | tail -8 >> $GITHUB_STEP_SUMMARY
-            
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            echo "### Failed Branches" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            grep "❌.*→" sync_report.txt | head -20 >> $GITHUB_STEP_SUMMARY || echo "No failures" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -A 15 "Final Summary" sync_report.txt >> $GITHUB_STEP_SUMMARY || true
           fi
       
       - name: Upload reports
@@ -75,17 +61,3 @@ jobs:
             sync_errors.log
           retention-days: 30
           if-no-files-found: warn
-      
-      - name: Check results
-        if: always()
-        run: |
-          if [ -f sync_report.txt ]; then
-            FAILED=$(grep -c "❌.*→" sync_report.txt || echo "0")
-            SUCCESS=$(grep -c "✅.*→" sync_report.txt || echo "0")
-            
-            echo "Results: $SUCCESS succeeded, $FAILED failed"
-            
-            if [ "$FAILED" -gt 0 ]; then
-              echo "::warning::$FAILED branches failed to sync"
-            fi
-          fi
