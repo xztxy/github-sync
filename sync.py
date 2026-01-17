@@ -61,10 +61,11 @@ def clone_repository(url, target_dir, branch):
         raise
 
 def remove_workflows(repo_dir):
-    """删除工作流文件"""
+    """删除工作流文件（安全处理）"""
     workflows_dir = repo_dir / '.github' / 'workflows'
     
     if not workflows_dir.exists():
+        print('   ℹ️  跳过删除：.github/workflows 不存在')
         return
     
     print('   🗑️  删除 .github/workflows 目录（避免权限问题）')
@@ -80,11 +81,17 @@ def remove_workflows(repo_dir):
             ], check=True, capture_output=True, text=True, cwd=str(repo_dir))
             print('   🧹 从 Git 索引中移除工作流文件')
         else:
-            print('   ℹ️  .github/workflows 目录不在 Git 索引中，直接删除')
+            print('   ℹ️  .github/workflows 不在 Git 索引中，直接删除')
     except subprocess.CalledProcessError as e:
         print(f'   ⚠️  清理 Git 索引时出错（可忽略）: {e}')
     
-    shutil.rmtree(workflows_dir)
+    try:
+        shutil.rmtree(workflows_dir)
+        print('   ✅ 已删除 .github/workflows 目录')
+    except FileNotFoundError:
+        print('   ℹ️  删除时发现目录已不存在，跳过')
+    except Exception as e:
+        print(f'   ⚠️ 删除目录时出错（可忽略）: {e}')
 
 def sync_repository(repo_config, github_client, target_repo, github_token):
     """同步单个仓库"""
