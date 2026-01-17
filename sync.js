@@ -64,6 +64,14 @@ const cloneRepository = async (url, targetDir, branch) => {
   }
 };
 
+const removeWorkflows = async (tempDir) => {
+  const workflowsDir = path.join(tempDir, '.github', 'workflows');
+  if (fs.existsSync(workflowsDir)) {
+    console.log('   🗑️  删除 .github/workflows 目录（避免权限问题）');
+    fs.rmSync(workflowsDir, { recursive: true, force: true });
+  }
+};
+
 const syncRepository = async (repoConfig, octokit, targetRepo, githubToken) => {
   const { repoUrl, sourceBranch, targetBranch, repoName } = repoConfig;
   const tempDir = path.join(TEMP_DIR, repoName);
@@ -84,6 +92,8 @@ const syncRepository = async (repoConfig, octokit, targetRepo, githubToken) => {
       
       await cloneRepository(repoUrl, tempDir, actualBranch);
     }
+
+    await removeWorkflows(tempDir);
 
     const repoGit = simpleGit(tempDir);
     await repoGit.pull('origin', actualBranch);
@@ -125,6 +135,7 @@ const main = async () => {
   console.log('🚀 开始同步仓库...');
   console.log(`📋 目标仓库: ${targetRepo}`);
   console.log(`📦 源仓库数量: ${sourceRepos.length}`);
+  console.log('💡 提示: 已自动排除 .github/workflows 目录以避免权限问题');
 
   let successCount = 0;
   let failCount = 0;
