@@ -1,92 +1,185 @@
-# GitHub 仓库同步项目
+# 🚀 GitHub Repository Sync
 
-自动同步多个 GitHub 公开仓库到单个仓库的不同分支。
+**超简化配置** - 只需 `owner/repo` 即可自动同步所有分支！
 
-## 功能特性
+## ✨ 特性
 
-- ✅ 定时自动同步（每天凌晨 2 点 UTC）
-- ✅ 支持手动触发同步
-- ✅ 配置文件更新后自动同步
-- ✅ 详细的同步报告
-- ✅ 支持多个源仓库
-- ✅ 每个源仓库同步到独立分支
-- ✅ 使用 Bash 脚本，简单可靠
+- 📝 **超简单配置** - 只需 `owner/repo` 格式
+- 🔄 **自动检测分支** - 无需手动配置任何分支
+- 🏷️ **智能命名** - 自动生成合理的目标分支名
+- 🗑️ **自动清理** - 可选删除 workflows 避免权限问题
+- 📊 **详细报告** - 完整的同步统计
+- ⚡ **快速同步** - 使用 shallow clone 加速
 
-## 使用方法
+## 🎯 快速开始
 
-### 1. 创建仓库
+### 1. 编辑配置文件
 
-在 GitHub 上创建一个名为 `github-sync` 的仓库。
+编辑 `config/repos.json`:
 
-### 2. 配置权限
-
-确保 GitHub Actions 有写入权限：
-- 进入仓库 Settings → Actions → General
-- 在 "Workflow permissions" 中选择 "Read and write permissions"
-- 勾选 "Allow GitHub Actions to create and approve pull requests"
-
-### 3. 上传项目文件
-
-将所有文件上传到仓库：
-```bash
-git clone https://github.com/xztxy/github-sync.git
-cd github-sync
-# 复制所有项目文件到这里
-git add .
-git commit -m "Initial commit"
-git push
-```
-
-### 4. 修改配置
-
-编辑 `config/repos.json` 文件，添加或修改要同步的仓库。
-
-### 5. 手动触发同步
-
-- 进入仓库的 Actions 标签
-- 选择 "Sync Repositories" 工作流
-- 点击 "Run workflow" 按钮
-
-## 配置说明
-
-`config/repos.json` 文件格式：
 ```json
 {
-  "targetRepo": "用户名/仓库名",
+  "targetRepo": "your-username/github-sync",
+  "removeWorkflows": true,
   "sourceRepos": [
-    {
-      "repoUrl": "源仓库URL",
-      "sourceBranch": "源分支名",
-      "targetBranch": "目标分支名",
-      "repoName": "仓库显示名称"
-    }
+    "kenzok8/small-package",
+    "coolsnowwolf/lede",
+    "immortalwrt/immortalwrt"
   ]
 }
 ```
 
-## 查看同步报告
+### 2. 提交配置
 
-每次同步后，可以在 Actions 运行记录中：
-1. 查看运行日志
-2. 下载 `sync-report` 附件查看详细报告
+```bash
+git add config/repos.json
+git commit -m "Add new repos to sync"
+git push
+```
 
-## 定时设置
+### 3. 自动同步
 
-默认每天 UTC 时间 02:00 运行（北京时间 10:00）。
+- 配置文件更新后自动触发
+- 每天 UTC 02:00 (北京时间 10:00) 自动运行
+- 可手动触发: Actions → Run workflow
 
-修改 `.github/workflows/sync.yml` 中的 cron 表达式来调整时间：
+## 📋 分支命名规则
+
+| 源仓库分支情况 | 目标分支命名 | 示例 |
+|--------------|------------|------|
+| 单个分支 | `{repo-name}` | `small-package` |
+| 多个分支 | `{repo-name}-{branch}` | `lede-master`<br>`lede-dev` |
+
+## 📊 同步报告示例
+
+```
+========================================
+📊 FINAL SUMMARY
+========================================
+Repositories:
+  Total:        7
+  ✅ Success:   6
+  ⚠️  Failed:    1
+
+Branches:
+  Total:        25
+  ✅ Success:   23
+  ❌ Failed:    2
+
+Success Rate: 92%
+========================================
+```
+
+## 🔧 配置选项
+
+| 选项 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `targetRepo` | string | ✅ | - | 目标仓库 (owner/repo) |
+| `removeWorkflows` | boolean | ❌ | `true` | 是否删除 .github/workflows |
+| `sourceRepos` | array | ✅ | - | 源仓库列表 (owner/repo) |
+
+## 📝 添加新仓库
+
+只需在 `sourceRepos` 中添加一行：
+
+```json
+{
+  "sourceRepos": [
+    "existing/repo",
+    "new-owner/new-repo"  ← 添加这里
+  ]
+}
+```
+
+## 🔐 权限设置
+
+进入仓库设置：
+
+1. Settings → Actions → General
+2. Workflow permissions → **Read and write permissions**
+3. ✅ 勾选 "Allow GitHub Actions to create and approve pull requests"
+
+## ⏰ 定时任务
+
+默认每天 UTC 02:00 (北京时间 10:00) 运行
+
+修改时间: 编辑 `.github/workflows/sync.yml`
+
 ```yaml
 schedule:
   - cron: '0 2 * * *'  # 分 时 日 月 周
 ```
 
-## 注意事项
+## 🎯 手动触发
 
-- 确保源仓库是公开的
-- 同步会强制覆盖目标分支
-- 大型仓库首次同步可能需要较长时间
-- GitHub Actions 有使用限制，请合理设置同步频率
+1. 进入 Actions 标签
+2. 选择 "Sync Repositories"
+3. 点击 "Run workflow"
 
-## License
+## 📖 示例
+
+### 同步单个仓库的所有分支
+
+```json
+{
+  "targetRepo": "xztxy/github-sync",
+  "sourceRepos": [
+    "kenzok8/small-package"
+  ]
+}
+```
+
+### 同步多个仓库
+
+```json
+{
+  "targetRepo": "xztxy/github-sync",
+  "removeWorkflows": true,
+  "sourceRepos": [
+    "coolsnowwolf/lede",
+    "immortalwrt/immortalwrt",
+    "x-wrt/x-wrt",
+    "kenzok8/openwrt-packages",
+    "kenzok8/small-package"
+  ]
+}
+```
+
+## 🐛 故障排除
+
+### 问题: 推送失败 (workflows permission)
+
+**解决方案**: 设置 `removeWorkflows: true`
+
+### 问题: 仓库访问失败
+
+**原因**: 仓库可能是私有的或不存在
+
+**解决方案**: 确保仓库是公开的且 URL 正确
+
+### 问题: 分支太多导致超时
+
+**解决方案**: 
+1. 分批添加仓库
+2. 增加 workflow timeout (默认 6 小时)
+
+## 📄 License
 
 MIT License
+
+## 🙏 致谢
+
+感谢所有开源项目的贡献者！
+
+## 主要特点：
+
+1. **✅ 超简化配置** - 只需 `owner/repo`
+2. **✅ 自动检测所有分支** - 无需手动配置
+3. **✅ 智能分支命名**:
+   - 单分支: `repo-name`
+   - 多分支: `repo-name-branch`
+4. **✅ 自动删除 workflows** - 避免权限问题
+5. **✅ 详细的进度和报告**
+6. **✅ 完整的错误处理**
+
+现在你只需要在配置文件中添加 `kenzok8/small-package`，脚本就会自动检测并同步所有分支！🎉

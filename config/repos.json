@@ -1,47 +1,13 @@
 {
   "targetRepo": "xztxy/github-sync",
+  "removeWorkflows": true,
   "sourceRepos": [
-    {
-      "repoUrl": "https://github.com/Zalafina/QKeyMapper",
-      "sourceBranch": "master",
-      "targetBranch": "qkeymapper",
-      "repoName": "QKeyMapper"
-    },
-    {
-      "repoUrl": "https://github.com/coolsnowwolf/lede",
-      "sourceBranch": "master",
-      "targetBranch": "lede",
-      "repoName": "lede"
-    },
-    {
-      "repoUrl": "https://github.com/immortalwrt/immortalwrt",
-      "sourceBranch": "master",
-      "targetBranch": "immortalwrt",
-      "repoName": "immortalwrt"
-    },
-    {
-      "repoUrl": "https://github.com/x-wrt/x-wrt",
-      "sourceBranch": "master",
-      "targetBranch": "x-wrt",
-      "repoName": "x-wrt"
-    },
-    {
-      "repoUrl": "https://github.com/fanchmwrt/fanchmwrt",
-      "sourceBranch": "fanchmwrt-24.10.4",
-      "targetBranch": "fanchmwrt",
-      "repoName": "fanchmwrt"
-    },
-    {
-      "repoUrl": "https://github.com/kenzok8/openwrt-packages",
-      "sourceBranch": "master",
-      "targetBranch": "openwrt-packages",
-      "repoName": "openwrt-packages"
-    },
-    {
-      "repoUrl": "https://github.com/kenzok8/small-package",
-      "sourceBranch": "main",
-      "targetBranch": "small-package",
-      "repoName": "small-package"
-    }
+    "Zalafina/QKeyMapper",
+    "coolsnowwolf/lede",
+    "immortalwrt/immortalwrt",
+    "x-wrt/x-wrt",
+    "fanchmwrt/fanchmwrt",
+    "kenzok8/openwrt-packages",
+    "kenzok8/small-package"
   ]
 }
