@@ -177,8 +177,9 @@ while IFS= read -r SOURCE_REPO; do
             continue
         }
         
-        echo "   📥 Cloning..."
-        CLONE_OUTPUT=$(git clone --depth 1 --single-branch --branch "$BRANCH_NAME" "$SOURCE_URL" source_repo 2>&1)
+        # 使用完整克隆而不是浅克隆
+        echo "   📥 Cloning (full clone)..."
+        CLONE_OUTPUT=$(git clone --single-branch --branch "$BRANCH_NAME" "$SOURCE_URL" source_repo 2>&1)
         CLONE_EXIT=$?
         
         if [ $CLONE_EXIT -eq 0 ]; then
@@ -218,6 +219,10 @@ while IFS= read -r SOURCE_REPO; do
             # 添加目标仓库
             git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
             
+            # 先 fetch 目标分支
+            echo "   📥 Fetching target branch..."
+            FETCH_OUTPUT=$(git fetch target "$BRANCH_NAME" 2>&1)
+            
             # 推送并捕获详细输出
             echo "   📤 Pushing to $TARGET_REPO/$BRANCH_NAME..."
             PUSH_OUTPUT=$(git push target "HEAD:refs/heads/$BRANCH_NAME" --force 2>&1)
@@ -249,6 +254,8 @@ while IFS= read -r SOURCE_REPO; do
                     ERROR_REASON="Forbidden (403)"
                 elif echo "$PUSH_OUTPUT" | grep -qi "repository not found"; then
                     ERROR_REASON="Repository not found"
+                elif echo "$PUSH_OUTPUT" | grep -qi "did not receive expected object"; then
+                    ERROR_REASON="Object not found (shallow clone issue)"
                 elif echo "$PUSH_OUTPUT" | grep -qi "failed to push"; then
                     ERROR_REASON="Push rejected"
                 fi
