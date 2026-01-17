@@ -13,7 +13,8 @@ echo "========================================="
 echo ""
 
 # 初始化报告
-{echo "=== Repository Sync Report ==="
+{
+    echo "=== Repository Sync Report ==="
     echo "Sync Time: $(date)"
     echo "Mode: Each source repo → separate target repo"
     echo ""
@@ -23,7 +24,7 @@ echo "=== Error Log ===" > "$ERROR_LOG"
 
 # 读取配置
 TARGET_OWNER=$(jq -r '.targetOwner' "$CONFIG_FILE")
-REMOVE_WORKFLOWS=$(jq -r '.removeWorkflows // false' "$CONFIG_FILE")  # 默认改为 false
+REMOVE_WORKFLOWS=$(jq -r '.removeWorkflows // false' "$CONFIG_FILE")
 SOURCE_REPOS=$(jq -r '.sourceRepos[]' "$CONFIG_FILE")
 
 echo "🎯 Target Owner: $TARGET_OWNER"
@@ -55,6 +56,7 @@ create_target_repo() {
         return 0
     elif [ "$HTTP_CODE" = "404" ]; then
         echo "   📝 Creating repository..."
+        
         REPO_NAME=$(echo "$TARGET_REPO" | cut -d'/' -f2)
         CREATE_RESPONSE=$(curl -s -X POST \
             -H "Authorization: token ${GITHUB_TOKEN}" \
@@ -69,7 +71,8 @@ create_target_repo() {
         
         if echo "$CREATE_RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
             echo "   ✅ Repository created"
-            CREATED_REPOS=$((CREATED_REPOS + 1))sleep 2
+            CREATED_REPOS=$((CREATED_REPOS + 1))
+            sleep 2
             return 0
         else
             echo "   ❌ Failed to create"
@@ -102,7 +105,8 @@ while IFS= read -r SOURCE_REPO; do
         echo "## 📦 $SOURCE_REPO → $TARGET_REPO"
         echo "- Source: $SOURCE_URL"
         echo "- Target: https://github.com/$TARGET_REPO"
-        echo ""} >> "$REPORT_FILE"
+        echo ""
+    } >> "$REPORT_FILE"
     
     # 创建目标仓库
     if ! create_target_repo "$TARGET_REPO" "Mirror of $SOURCE_REPO"; then
@@ -153,7 +157,6 @@ while IFS= read -r SOURCE_REPO; do
         echo '```'
         echo ""
     } >> "$REPORT_FILE"
-    
     REPO_SUCCESS=0
     REPO_FAILED=0
     
@@ -176,8 +179,8 @@ while IFS= read -r SOURCE_REPO; do
             continue
         }
         
-        echo "   📥 Cloning..."CLONE_OUTPUT=$(git clone --depth 1 --single-branch --branch "$BRANCH_NAME" "$SOURCE_URL" source_repo 2>&1)
-        CLONE_EXIT=$?
+        echo "   📥 Cloning..."
+        CLONE_OUTPUT=$(git clone --depth 1 --single-branch --branch "$BRANCH_NAME" "$SOURCE_URL" source_repo 2>&1)CLONE_EXIT=$?
         
         if [ $CLONE_EXIT -eq 0 ]; then
             cd source_repo || {
@@ -191,7 +194,7 @@ while IFS= read -r SOURCE_REPO; do
                 continue
             }
             
-            # 可选：删除 workflows（根据配置）
+            # 可选：删除 workflows
             if [ "$REMOVE_WORKFLOWS" = "true" ]; then
                 if [ -d ".github/workflows" ]; then
                     echo "   🗑️  Removing workflows..."
@@ -214,7 +217,7 @@ while IFS= read -r SOURCE_REPO; do
             # 添加目标仓库
             git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
             
-            # 推送并捕获详细输出
+            # 推送
             echo "   📤 Pushing to $TARGET_REPO/$BRANCH_NAME..."
             PUSH_OUTPUT=$(git push target "HEAD:refs/heads/$BRANCH_NAME" --force 2>&1)
             PUSH_EXIT=$?
@@ -231,11 +234,10 @@ while IFS= read -r SOURCE_REPO; do
                 REPO_SUCCESS=$((REPO_SUCCESS + 1))
             else
                 echo "   ❌ Push failed (Exit: $PUSH_EXIT)"
-                # 显示详细错误
                 echo "   📄 Error output:"
                 echo "$PUSH_OUTPUT" | sed 's/^/      /'
                 
-                # 分析错误原因
+                # 分析错误
                 ERROR_REASON="Unknown"
                 if echo "$PUSH_OUTPUT" | grep -qi "refusing to allow.*workflow"; then
                     ERROR_REASON="Workflow permission denied"
@@ -254,7 +256,6 @@ while IFS= read -r SOURCE_REPO; do
                 echo "      Reason: $ERROR_REASON"
                 echo "   ❌ $BRANCH_NAME: $ERROR_REASON" >> "$REPORT_FILE"
                 
-                # 记录详细错误
                 {
                     echo "========================================="
                     echo "[$SOURCE_REPO/$BRANCH_NAME → $TARGET_REPO/$BRANCH_NAME]"
@@ -267,7 +268,8 @@ while IFS= read -r SOURCE_REPO; do
                 
                 FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
                 REPO_FAILED=$((REPO_FAILED + 1))
-            fielse
+            fi
+        else
             echo "   ❌ Clone failed (Exit: $CLONE_EXIT)"
             echo "   📄 Clone output:"
             echo "$CLONE_OUTPUT" | sed 's/^/      /'
@@ -281,7 +283,9 @@ while IFS= read -r SOURCE_REPO; do
                 echo "Output:"
                 echo "$CLONE_OUTPUT"
                 echo ""
-            } >> "$ERROR_LOG"FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
+            } >> "$ERROR_LOG"
+            
+            FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
             REPO_FAILED=$((REPO_FAILED + 1))
         fi
         
@@ -301,7 +305,8 @@ while IFS= read -r SOURCE_REPO; do
     {
         echo ""
         echo "**Summary:** ✅ $REPO_SUCCESS / ❌ $REPO_FAILED"
-        echo ""} >> "$REPORT_FILE"
+        echo ""
+    } >> "$REPORT_FILE"
     
     echo ""
 done <<< "$SOURCE_REPOS"
@@ -365,7 +370,8 @@ cat "$REPORT_FILE"
 if [ $FAILED_BRANCHES -gt 0 ]; then
     echo ""
     echo "⚠️  $FAILED_BRANCHES branches failed"
-    echo ""echo "📄 Error Log Preview (first 50 lines):"
+    echo ""
+    echo "📄 Error Log Preview (first 50 lines):"
     echo "========================================="
     head -50 "$ERROR_LOG"
     echo "========================================="

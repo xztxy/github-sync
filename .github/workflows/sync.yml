@@ -14,7 +14,6 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    
     permissions:
       contents: write
     
@@ -39,8 +38,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           chmod +x scripts/sync.sh
-          ./scripts/sync.sh
-        continue-on-error: true
+          ./scripts/sync.shcontinue-on-error: true
       
       - name: Generate summary
         if: always()
@@ -58,6 +56,4 @@ jobs:
           name: sync-reports-${{ github.run_number }}
           path: |
             sync_report.txt
-            sync_errors.log
-          retention-days: 30
-          if-no-files-found: warn
+            sync_errors.logretention-days: 30if-no-files-found: warn
