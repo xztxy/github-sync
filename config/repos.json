@@ -1,5 +1,5 @@
 {
-  "targetRepo": "xztxy/github-sync",
+  "targetOwner": "xztxy",
   "removeWorkflows": true,
   "sourceRepos": [
     "Zalafina/QKeyMapper",
