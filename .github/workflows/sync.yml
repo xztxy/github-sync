@@ -1,33 +1,56 @@
-name: Sync GitHub Repositories
+name: Sync Repositories
 
 on:
+  # 定时运行：每天凌晨 2 点（UTC时间）
   schedule:
-    - cron: '0 0 * * *'  # 每天 UTC 时间 00:00 运行
-  workflow_dispatch:  # 允许手动触发
+    - cron: '0 2 * * *'
+  
+  # 支持手动触发
+  workflow_dispatch:
+  
+  # 当配置文件更新时自动运行
+  push:
+    paths:
+      - 'config/repos.json'
+      - '.github/workflows/sync.yml'
+      - 'scripts/sync.sh'
 
 jobs:
-  sync-repositories:
+  sync:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: read
-      pull-requests: read
     
     steps:
-      - name: Checkout code
+      - name: Checkout sync repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Install dependencies
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
         run: |
-          pip install PyGithub
-
-      - name: Run sync script
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+      
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      
+      - name: Sync repositories
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_REPOS: ${{ secrets.SOURCE_REPOS }}
-        run: python sync.py
+        run: |
+          chmod +x scripts/sync.sh
+          ./scripts/sync.sh
+      
+      - name: Generate sync report
+        if: always()
+        run: |
+          if [ -f sync_report.txt ]; then
+            cat sync_report.txt
+          fi
+      
+      - name: Upload sync report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: sync-report
+          path: sync_report.txt
