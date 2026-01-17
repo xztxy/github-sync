@@ -4,6 +4,7 @@ set +e
 
 CONFIG_FILE="config/repos.json"
 REPORT_FILE="${GITHUB_WORKSPACE:-$(pwd)}/sync_report.txt"
+ERROR_LOG="${GITHUB_WORKSPACE:-$(pwd)}/sync_errors.log"
 
 echo "========================================="
 echo "  🚀 GitHub Repository Sync Tool"
@@ -11,13 +12,17 @@ echo "  📦 Auto-detect All Branches"
 echo "========================================="
 echo ""
 
-# 初始化报告
+# 初始化报告和错误日志
 {
     echo "=== Repository Sync Report ==="
     echo "Sync Time: $(date)"
     echo "Mode: Auto-detect all branches"
     echo ""
 } > "$REPORT_FILE"
+
+echo "=== Error Log ===" > "$ERROR_LOG"
+echo "Sync Time: $(date)" >> "$ERROR_LOG"
+echo "" >> "$ERROR_LOG"
 
 # 读取配置
 TARGET_REPO=$(jq -r '.targetRepo' "$CONFIG_FILE")
@@ -48,7 +53,7 @@ while IFS= read -r REPO_SHORT; do
     # 从 owner/repo 提取信息
     REPO_OWNER=$(echo "$REPO_SHORT" | cut -d'/' -f1)
     REPO_NAME=$(echo "$REPO_SHORT" | cut -d'/' -f2)
-    # 生成分支前缀（使用仓库名，转小写，替换特殊字符）
+    # 生成分支前缀
     BRANCH_PREFIX=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')
     
     echo "========================================="
@@ -77,6 +82,7 @@ while IFS= read -r REPO_SHORT; do
             echo "- Error: Repository not accessible"
             echo ""
         } >> "$REPORT_FILE"
+        echo "[$REPO_SHORT] Failed to access repository" >> "$ERROR_LOG"
         FAILED_REPOS=$((FAILED_REPOS + 1))
         echo ""
         continue
@@ -93,6 +99,7 @@ while IFS= read -r REPO_SHORT; do
             echo "- Error: No branches found"
             echo ""
         } >> "$REPORT_FILE"
+        echo "[$REPO_SHORT] No branches found" >> "$ERROR_LOG"
         FAILED_REPOS=$((FAILED_REPOS + 1))
         echo ""
         continue
@@ -117,19 +124,15 @@ while IFS= read -r REPO_SHORT; do
         TOTAL_BRANCHES=$((TOTAL_BRANCHES + 1))
         
         # 生成目标分支名
-        # 规则：
-        # - 如果只有1个分支：使用 prefix
-        # - 如果有多个分支：使用 prefix-branchname
         if [ "$BRANCH_COUNT" -eq 1 ]; then
             TARGET_BRANCH="$BRANCH_PREFIX"
         else
-            # 清理分支名中的特殊字符
             CLEAN_BRANCH=$(echo "$SOURCE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')
             TARGET_BRANCH="${BRANCH_PREFIX}-${CLEAN_BRANCH}"
         fi
         
         echo "-------------------------------------------"
-        echo "🔄 Syncing: $SOURCE_BRANCH"
+        echo "🌿 Branch: $SOURCE_BRANCH"
         echo "   → Target: $TARGET_BRANCH"
         
         # 创建临时目录
@@ -139,6 +142,7 @@ while IFS= read -r REPO_SHORT; do
         cd "$TEMP_DIR" || {
             echo "   ❌ Failed to create temp directory"
             echo "   - $SOURCE_BRANCH → $TARGET_BRANCH: ❌ FAILED (Temp dir error)" >> "$REPORT_FILE"
+            echo "[$REPO_SHORT/$SOURCE_BRANCH] Temp dir error" >> "$ERROR_LOG"
             FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
             REPO_FAILED=$((REPO_FAILED + 1))
             continue
@@ -146,10 +150,13 @@ while IFS= read -r REPO_SHORT; do
         
         # 克隆指定分支
         echo "   📥 Cloning..."
-        if git clone --depth 1 --single-branch --branch "$SOURCE_BRANCH" "$REPO_URL" source_repo > /dev/null 2>&1; then
+        CLONE_OUTPUT=$(git clone --depth 1 --single-branch --branch "$SOURCE_BRANCH" "$REPO_URL" source_repo 2>&1)
+        
+        if [ $? -eq 0 ]; then
             cd source_repo || {
                 echo "   ❌ Failed to enter directory"
                 echo "   - $SOURCE_BRANCH → $TARGET_BRANCH: ❌ FAILED (Directory error)" >> "$REPORT_FILE"
+                echo "[$REPO_SHORT/$SOURCE_BRANCH] Directory error" >> "$ERROR_LOG"
                 FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
                 REPO_FAILED=$((REPO_FAILED + 1))
                 cd "$ORIGINAL_DIR"
@@ -157,17 +164,33 @@ while IFS= read -r REPO_SHORT; do
                 continue
             }
             
-            # 删除 workflows（如果配置启用）
+            # 删除 workflows 和其他可能导致问题的文件
             if [ "$REMOVE_WORKFLOWS" = "true" ]; then
+                REMOVED_FILES=""
+                
+                # 删除 .github/workflows
                 if [ -d ".github/workflows" ]; then
-                    echo "   🗑️  Removing workflows..."
+                    echo "   🗑️  Removing .github/workflows..."
                     rm -rf .github/workflows
-                    # 如果 .github 目录为空，也删除它
-                    if [ -d ".github" ] && [ -z "$(ls -A .github 2>/dev/null)" ]; then
-                        rm -rf .github
-                    fi
+                    REMOVED_FILES="workflows"
+                fi
+                
+                # 删除 .github/dependabot.yml (也可能导致问题)
+                if [ -f ".github/dependabot.yml" ]; then
+                    echo "   🗑️  Removing .github/dependabot.yml..."
+                    rm -f .github/dependabot.yml
+                    REMOVED_FILES="${REMOVED_FILES:+$REMOVED_FILES, }dependabot"
+                fi
+                
+                # 如果 .github 目录为空，删除它
+                if [ -d ".github" ] && [ -z "$(ls -A .github 2>/dev/null)" ]; then
+                    rm -rf .github
+                fi
+                
+                # 提交更改
+                if [ -n "$REMOVED_FILES" ]; then
                     git add -A
-                    git commit -m "chore: remove workflows for sync" --allow-empty > /dev/null 2>&1 || true
+                    git commit -m "chore: remove $REMOVED_FILES for sync" --allow-empty > /dev/null 2>&1 || true
                 fi
             fi
             
@@ -183,9 +206,13 @@ while IFS= read -r REPO_SHORT; do
             
             # 添加目标仓库
             git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
-            # 推送
+            
+            # 推送（捕获详细错误）
             echo "   📤 Pushing..."
-            if git push target "HEAD:refs/heads/$TARGET_BRANCH" --force > /dev/null 2>&1; then
+            PUSH_OUTPUT=$(git push target "HEAD:refs/heads/$TARGET_BRANCH" --force 2>&1)
+            PUSH_RESULT=$?
+            
+            if [ $PUSH_RESULT -eq 0 ]; then
                 echo "   ✅ Success"
                 {
                     echo "   ✅ $SOURCE_BRANCH → $TARGET_BRANCH"
@@ -198,13 +225,43 @@ while IFS= read -r REPO_SHORT; do
                 REPO_SUCCESS=$((REPO_SUCCESS + 1))
             else
                 echo "   ❌ Push failed"
-                echo "   ❌ $SOURCE_BRANCH → $TARGET_BRANCH: Push error" >> "$REPORT_FILE"
+                
+                # 分析错误原因
+                ERROR_REASON="Unknown error"
+                if echo "$PUSH_OUTPUT" | grep -q "refusing to allow.*workflow"; then
+                    ERROR_REASON="Workflow permission denied"
+                elif echo "$PUSH_OUTPUT" | grep -q "protected branch"; then
+                    ERROR_REASON="Protected branch"
+                elif echo "$PUSH_OUTPUT" | grep -q "authentication"; then
+                    ERROR_REASON="Authentication failed"
+                elif echo "$PUSH_OUTPUT" | grep -q "permission denied"; then
+                    ERROR_REASON="Permission denied"
+                fi
+                
+                echo "      Reason: $ERROR_REASON"
+                echo "   ❌ $SOURCE_BRANCH → $TARGET_BRANCH: $ERROR_REASON" >> "$REPORT_FILE"
+                
+                # 记录详细错误
+                {
+                    echo "[$REPO_SHORT/$SOURCE_BRANCH → $TARGET_BRANCH]"
+                    echo "Error: $ERROR_REASON"
+                    echo "Output:"
+                    echo "$PUSH_OUTPUT"
+                    echo ""
+                } >> "$ERROR_LOG"
+                
                 FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
                 REPO_FAILED=$((REPO_FAILED + 1))
             fi
         else
             echo "   ❌ Clone failed"
             echo "   ❌ $SOURCE_BRANCH → $TARGET_BRANCH: Clone error" >> "$REPORT_FILE"
+            {
+                echo "[$REPO_SHORT/$SOURCE_BRANCH]"
+                echo "Clone failed:"
+                echo "$CLONE_OUTPUT"
+                echo ""
+            } >> "$ERROR_LOG"
             FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
             REPO_FAILED=$((REPO_FAILED + 1))
         fi
@@ -231,6 +288,7 @@ while IFS= read -r REPO_SHORT; do
     } >> "$REPORT_FILE"
     
     echo ""
+    
 done <<< "$SOURCE_REPOS"
 
 # 生成最终总结
@@ -278,16 +336,36 @@ if [ $TOTAL_BRANCHES -gt 0 ]; then
 fi
 echo "========================================="
 
+# 显示失败的分支
+if [ $FAILED_BRANCHES -gt 0 ]; then
+    echo ""
+    echo "❌ Failed Branches:"
+    echo "========================================="
+    grep "❌" "$REPORT_FILE" | grep "→" | head -20
+    echo ""
+    echo "📄 See full error log in artifacts"
+fi
+
 # 显示完整报告
 echo ""
 echo "📄 Full Report:"
 echo "========================================="
 cat "$REPORT_FILE"
 
+# 显示错误摘要
+if [ $FAILED_BRANCHES -gt 0 ]; then
+    echo ""
+    echo "🔍 Error Summary:"
+    echo "========================================="
+    grep -E "^\[.*\]$|^Error:" "$ERROR_LOG" | head -40
+fi
+
 # 返回退出码
 if [ $FAILED_BRANCHES -gt 0 ]; then
     echo ""
-    echo "⚠️  Some branches failed to sync"
+    echo "⚠️  $FAILED_BRANCHES branches failed to sync"
+    echo "💡 Tip: Check if these branches contain .github/workflows files"
+    echo "💡 Solution: Ensure 'removeWorkflows: true' in config"
     exit 1
 fi
 
