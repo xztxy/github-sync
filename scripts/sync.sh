@@ -56,7 +56,8 @@ while IFS= read -r repo; do
     {
         echo "## $REPO_NAME"
         echo "- Source: $REPO_URL"
-        echo "- Branch: $SOURCE_BRANCH -> $TARGET_BRANCH"} >> "$REPORT_FILE"
+        echo "- Branch: $SOURCE_BRANCH -> $TARGET_BRANCH"
+    } >> "$REPORT_FILE"
     
     # 创建临时目录
     TEMP_DIR=$(mktemp -d)
