@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 from github import Github
+from github.Auth import Token
 
 CONFIG_FILE = Path(__file__).parent / 'sync-config.json'
 TEMP_DIR = Path(__file__).parent / 'temp'
@@ -62,25 +63,28 @@ def clone_repository(url, target_dir, branch):
 def remove_workflows(repo_dir):
     """删除工作流文件"""
     workflows_dir = repo_dir / '.github' / 'workflows'
-    if workflows_dir.exists():
-        print('   🗑️  删除 .github/workflows 目录（避免权限问题）')
+    
+    if not workflows_dir.exists():
+        return
+    
+    print('   🗑️  删除 .github/workflows 目录（避免权限问题）')
+    
+    try:
+        result = subprocess.run([
+            'git', 'ls-files', '.github/workflows'
+        ], check=False, capture_output=True, text=True, cwd=str(repo_dir))
         
-        try:
-            result = subprocess.run([
-                'git', 'ls-files', '.github/workflows'
-            ], check=False, capture_output=True, text=True, cwd=str(repo_dir))
-            
-            if result.stdout.strip():
-                subprocess.run([
-                    'git', 'rm', '-r', '-f', '.github/workflows'
-                ], check=True, capture_output=True, text=True, cwd=str(repo_dir))
-                print('   🧹 从 Git 索引中移除工作流文件')
-            else:
-                print('   ℹ️  .github/workflows 目录不在 Git 索引中，直接删除')
-        except subprocess.CalledProcessError as e:
-            print(f'   ⚠️  清理 Git 索引时出错（可忽略）: {e}')
-        
-        shutil.rmtree(workflows_dir)
+        if result.stdout.strip():
+            subprocess.run([
+                'git', 'rm', '-r', '-f', '.github/workflows'
+            ], check=True, capture_output=True, text=True, cwd=str(repo_dir))
+            print('   🧹 从 Git 索引中移除工作流文件')
+        else:
+            print('   ℹ️  .github/workflows 目录不在 Git 索引中，直接删除')
+    except subprocess.CalledProcessError as e:
+        print(f'   ⚠️  清理 Git 索引时出错（可忽略）: {e}')
+    
+    shutil.rmtree(workflows_dir)
 
 def sync_repository(repo_config, github_client, target_repo, github_token):
     """同步单个仓库"""
@@ -142,7 +146,7 @@ def main():
         print('❌ 配置文件中缺少 targetRepo 字段')
         sys.exit(1)
     
-    github_client = Github(github_token)
+    github_client = Github(auth=Token(github_token))
     
     print('🚀 开始同步仓库...')
     print(f'📋 目标仓库: {target_repo}')
