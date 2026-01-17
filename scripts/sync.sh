@@ -106,7 +106,8 @@ while IFS= read -r SOURCE_REPO; do
         echo "## 📦 $SOURCE_REPO → $TARGET_REPO"
         echo "- Source: $SOURCE_URL"
         echo "- Target: https://github.com/$TARGET_REPO"
-        echo ""} >> "$REPORT_FILE"
+        echo ""
+    } >> "$REPORT_FILE"
     
     # 创建目标仓库
     if ! create_target_repo "$TARGET_REPO" "Mirror of $SOURCE_REPO"; then
@@ -131,8 +132,7 @@ while IFS= read -r SOURCE_REPO; do
         FAILED_REPOS=$((FAILED_REPOS + 1))
         echo ""
         continue
-    fi
-    BRANCH_LIST=$(echo "$REMOTE_BRANCHES" | awk '{print $2}' | sed 's|refs/heads/||' | sort)
+    fiBRANCH_LIST=$(echo "$REMOTE_BRANCHES" | awk '{print $2}' | sed 's|refs/heads/||' | sort)
     BRANCH_COUNT=$(echo "$BRANCH_LIST" | wc -l)
     
     if [ -z "$BRANCH_LIST" ] || [ "$BRANCH_COUNT" -eq 0 ]; then
@@ -156,7 +156,6 @@ while IFS= read -r SOURCE_REPO; do
         echo '```'
         echo ""
     } >> "$REPORT_FILE"
-    
     REPO_SUCCESS=0
     REPO_FAILED=0
     
@@ -167,8 +166,7 @@ while IFS= read -r SOURCE_REPO; do
         TOTAL_BRANCHES=$((TOTAL_BRANCHES + 1))
         
         echo "-------------------------------------------"
-        echo "🌿 Branch: $BRANCH_NAME"
-        TEMP_DIR=$(mktemp -d)
+        echo "🌿 Branch: $BRANCH_NAME"TEMP_DIR=$(mktemp -d)
         ORIGINAL_DIR=$(pwd)
         
         cd "$TEMP_DIR" || {
@@ -181,7 +179,8 @@ while IFS= read -r SOURCE_REPO; do
         }
         
         echo "   📥 Cloning..."
-        CLONE_OUTPUT=$(git clone --depth 1 --single-branch --branch "$BRANCH_NAME" "$SOURCE_URL" source_repo 2>&1)CLONE_EXIT=$?
+        CLONE_OUTPUT=$(git clone --depth 1 --single-branch --branch "$BRANCH_NAME" "$SOURCE_URL" source_repo 2>&1)
+        CLONE_EXIT=$?
         
         if [ $CLONE_EXIT -eq 0 ]; then
             cd source_repo || {
@@ -209,12 +208,13 @@ while IFS= read -r SOURCE_REPO; do
                     git add -A
                     git commit -m "chore: remove workflows" --allow-empty > /dev/null 2>&1 || true
                 fi
-            fiLATEST_COMMIT=$(git log -1 --format="%H" 2>/dev/null || echo "unknown")
+            fi
+            
+            LATEST_COMMIT=$(git log -1 --format="%H" 2>/dev/null || echo "unknown")
             COMMIT_MESSAGE=$(git log -1 --format="%s" 2>/dev/null || echo "No message")
             COMMIT_DATE=$(git log -1 --format="%ci" 2>/dev/null || echo "unknown")
             
             echo "   📝 ${LATEST_COMMIT:0:8} - $COMMIT_MESSAGE"
-            
             # 添加目标仓库
             git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
             
@@ -269,7 +269,8 @@ while IFS= read -r SOURCE_REPO; do
                 
                 FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
                 REPO_FAILED=$((REPO_FAILED + 1))
-            fielse
+            fi
+        else
             echo "   ❌ Clone failed (Exit: $CLONE_EXIT)"
             echo "   📄 Clone output:"
             echo "$CLONE_OUTPUT" | sed 's/^/      /'
