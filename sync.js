@@ -71,7 +71,7 @@ const removeWorkflows = async (repoGit) => {
     fs.rmSync(workflowsDir, { recursive: true, force: true });
     
     try {
-      await repoGit.rm('-r', '--cached', '.github/workflows');
+      await repoGit.raw(['rm', '-r', '--cached', '.github/workflows']);
       console.log('   🧹 从 Git 索引中移除工作流文件');
     } catch (error) {
       console.log('   ⚠️  清理 Git 索引时出错（可忽略）:', error.message);
