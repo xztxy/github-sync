@@ -27,7 +27,7 @@
     },
     {
       "repoUrl": "https://github.com/fanchmwrt/fanchmwrt",
-      "sourceBranch": "main",
+      "sourceBranch": "fanchmwrt-24.10.4",
       "targetBranch": "fanchmwrt",
       "repoName": "fanchmwrt"
     },
@@ -39,7 +39,7 @@
     },
     {
       "repoUrl": "https://github.com/kenzok8/small-package",
-      "sourceBranch": "master",
+      "sourceBranch": "main",
       "targetBranch": "small-package",
       "repoName": "small-package"
     }
