@@ -12,21 +12,22 @@ jobs:
       contents: write
       actions: read
       pull-requests: read
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          pip install PyGithub
 
       - name: Run sync script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_REPOS: ${{ secrets.SOURCE_REPOS }}
-        run: node sync.js
+        run: python sync.py
