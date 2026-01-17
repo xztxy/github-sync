@@ -65,7 +65,8 @@ const cloneRepository = async (url, targetDir, branch) => {
 };
 
 const removeWorkflows = async (repoGit) => {
-  const workflowsDir = path.join(repoGit.cwd, '.github', 'workflows');
+  const cwd = repoGit.cwd();
+  const workflowsDir = path.join(cwd, '.github', 'workflows');
   if (fs.existsSync(workflowsDir)) {
     console.log('   🗑️  删除 .github/workflows 目录（避免权限问题）');
     
@@ -75,6 +76,8 @@ const removeWorkflows = async (repoGit) => {
     } catch (error) {
       console.log('   ⚠️  清理 Git 索引时出错（可忽略）:', error.message);
     }
+    
+    fs.rmSync(workflowsDir, { recursive: true, force: true });
   }
 };
 
