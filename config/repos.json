@@ -1,6 +1,6 @@
 {
   "targetOwner": "xztxy",
-  "removeWorkflows": true,
+  "removeWorkflows": false,
   "sourceRepos": [
     "Zalafina/QKeyMapper",
     "coolsnowwolf/lede",
