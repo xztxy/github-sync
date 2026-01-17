@@ -66,10 +66,17 @@ def remove_workflows(repo_dir):
         print('   🗑️  删除 .github/workflows 目录（避免权限问题）')
         
         try:
-            subprocess.run([
-                'git', 'rm', '-r', '-f', '.github/workflows'
-            ], check=True, capture_output=True, text=True, cwd=str(repo_dir))
-            print('   🧹 从 Git 索引中移除工作流文件')
+            result = subprocess.run([
+                'git', 'ls-files', '.github/workflows'
+            ], check=False, capture_output=True, text=True, cwd=str(repo_dir))
+            
+            if result.stdout.strip():
+                subprocess.run([
+                    'git', 'rm', '-r', '-f', '.github/workflows'
+                ], check=True, capture_output=True, text=True, cwd=str(repo_dir))
+                print('   🧹 从 Git 索引中移除工作流文件')
+            else:
+                print('   ℹ️  .github/workflows 目录不在 Git 索引中，直接删除')
         except subprocess.CalledProcessError as e:
             print(f'   ⚠️  清理 Git 索引时出错（可忽略）: {e}')
         
