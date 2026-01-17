@@ -3,7 +3,7 @@
   "sourceRepos": [
     {
       "repoUrl": "https://github.com/Zalafina/QKeyMapper",
-      "sourceBranch": "main",
+      "sourceBranch": "master",
       "targetBranch": "qkeymapper",
       "repoName": "QKeyMapper"
     },

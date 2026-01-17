@@ -5,8 +5,13 @@ set -e
 CONFIG_FILE="config/repos.json"
 REPORT_FILE="sync_report.txt"
 
-# 初始化报告文件
-echo "=== Repository Sync Report ===" > "$REPORT_FILE"
+# �保有写入权限，初始化报告文件
+echo "=== Repository Sync Report ===" > "$REPORT_FILE" || {
+    echo "Error: Cannot write to $REPORT_FILE"
+    REPORT_FILE="/tmp/sync_report.txt"
+    echo "Using temporary file: $REPORT_FILE"
+    echo "=== Repository Sync Report ===" > "$REPORT_FILE"
+}
 echo "Sync Time: $(date)" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 
@@ -44,7 +49,35 @@ while IFS= read -r repo; do
     TEMP_DIR=$(mktemp -d)
     
     if cd "$TEMP_DIR"; then
+        # 先检查远程分支是否存在
+        echo "Checking remote branches..."
+        AVAILABLE_BRANCHES=$(git ls-remote --heads "$REPO_URL" 2>&1 || echo "")
+        
+        if [ -z "$AVAILABLE_BRANCHES" ]; then
+            echo "✗ Failed to access repository $REPO_NAME"
+            echo "- Status: ✗ FAILED (Repository not accessible)" >> "$REPORT_FILE"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+            cd /
+            rm -rf "$TEMP_DIR"
+            echo "" >> "$REPORT_FILE"
+            echo ""
+            continue
+        fi
+        
+        # 检查指定分支是否存在
+        if ! echo "$AVAILABLE_BRANCHES" | grep -q "refs/heads/$SOURCE_BRANCH"; then
+            echo "✗ Branch '$SOURCE_BRANCH' not found in $REPO_NAME"
+            echo "Available branches:"
+            echo "$AVAILABLE_BRANCHES" | awk '{print "  - " $2}' | sed 's|refs/heads/||'
+            
+            # 尝试使用默认分支
+            DEFAULT_BRANCH=$(echo "$AVAILABLE_BRANCHES" | head -n 1 | awk '{print $2}' | sed 's|refs/heads/||')
+            echo "Attempting to use default branch: $DEFAULT_BRANCH"
+            SOURCE_BRANCH="$DEFAULT_BRANCH"
+        fi
+        
         # 克隆源仓库
+        echo "Cloning repository..."
         if git clone --depth 1 --branch "$SOURCE_BRANCH" "$REPO_URL" source_repo 2>&1; then
             cd source_repo
             
@@ -61,9 +94,11 @@ while IFS= read -r repo; do
             git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git"
             
             # 尝试推送到目标分支
+            echo "Pushing to target repository..."
             if git push target "HEAD:refs/heads/$TARGET_BRANCH" --force 2>&1; then
                 echo "✓ Successfully synced $REPO_NAME"
                 echo "- Status: ✓ SUCCESS" >> "$REPORT_FILE"
+                echo "- Source Branch: $SOURCE_BRANCH" >> "$REPORT_FILE"
                 echo "- Latest Commit: $LATEST_COMMIT" >> "$REPORT_FILE"
                 echo "- Commit Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
                 echo "- Commit Date: $COMMIT_DATE" >> "$REPORT_FILE"
@@ -100,7 +135,15 @@ echo "- Success: $SUCCESS_COUNT" | tee -a "$REPORT_FILE"
 echo "- Failed: $FAIL_COUNT" | tee -a "$REPORT_FILE"
 echo "========================================" | tee -a "$REPORT_FILE"
 
+# 如果使用了临时文件，复制回工作目录
+if [ "$REPORT_FILE" = "/tmp/sync_report.txt" ]; then
+    cp "$REPORT_FILE" "$GITHUB_WORKSPACE/sync_report.txt" || true
+fi
+
 # 如果有失败，退出码为1
 if [ $FAIL_COUNT -gt 0 ]; then
+    echo "Some repositories failed to sync"
     exit 1
 fi
+
+echo "All repositories synced successfully!"
