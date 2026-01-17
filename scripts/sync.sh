@@ -42,6 +42,59 @@ TOTAL_BRANCHES=0
 SUCCESS_BRANCHES=0
 FAILED_BRANCHES=0
 CREATED_REPOS=0
+DELETED_REPOS=0
+
+# 函数：删除目标仓库的所有分支
+delete_target_branches() {
+    local TARGET_REPO=$1
+    
+    echo "   🗑️  Deleting all branches from target repository..."
+    
+    # 克隆目标仓库
+    TEMP_DIR=$(mktemp -d)
+    ORIGINAL_DIR=$(pwd)
+    
+    cd "$TEMP_DIR" || {
+        echo "   ❌ Failed to create temp directory"
+        return 1
+    }
+    
+    # 克隆目标仓库（裸仓库）
+    if git clone --bare "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" target_repo 2>&1; then
+        cd target_repo
+        
+        # 获取所有分支
+        BRANCHES=$(git branch | sed 's/^\* //')
+        
+        if [ -n "$BRANCHES" ]; then
+            echo "   📋 Found $(echo "$BRANCHES" | wc -l) branch(es) to delete"
+            
+            # 删除所有分支
+            for branch in $BRANCHES; do
+                git branch -D "$branch" 2>/dev/null || true
+            done
+            
+            # 删除所有远程分支
+            git branch -r | grep -v HEAD | while read branch; do
+                git push origin --delete "$branch" 2>/dev/null || true
+            done
+            
+            DELETED_REPOS=$((DELETED_REPOS + 1))
+            echo "   ✅ All branches deleted from $TARGET_REPO"
+        else
+            echo "   ℹ️  No branches found in $TARGET_REPO"
+        fi
+        
+        cd "$ORIGINAL_DIR"
+        rm -rf "$TEMP_DIR"
+        return 0
+    else
+        echo "   ❌ Failed to clone target repository"
+        cd "$ORIGINAL_DIR"
+        rm -rf "$TEMP_DIR"
+        return 1
+    fi
+}
 
 # 函数：创建目标仓库（如果不存在）
 create_target_repo() {
@@ -109,6 +162,20 @@ sync_repository() {
         echo "- Target Repo: https://github.com/$TARGET_REPO"
         echo ""
     } >> "$REPORT_FILE"
+    
+    # 删除目标仓库的所有分支
+    if ! delete_target_branches "$TARGET_REPO"; then
+        echo "❌ Failed to delete target branches"
+        {
+            echo "- Status: ❌ FAILED"
+            echo "- Error: Cannot delete target branches"
+            echo ""
+        } >> "$REPORT_FILE"
+        echo "[$SOURCE_REPO] Cannot delete target branches" >> "$ERROR_LOG"
+        FAILED_REPOS=$((FAILED_REPOS + 1))
+        echo ""
+        return 1
+    fi
     
     # 创建目标仓库
     if ! create_target_repo "$TARGET_REPO" "Mirror of $SOURCE_REPO"; then
@@ -356,6 +423,7 @@ done <<< "$SOURCE_REPOS"
     echo "- ✅ Fully Synced: $SUCCESS_REPOS"
     echo "- ⚠️  Partial/Failed: $FAILED_REPOS"
     echo "- 🆕 Created: $CREATED_REPOS"
+    echo "- 🗑️  Deleted Branches: $DELETED_REPOS"
     echo ""
     echo "### Branches"
     echo "- Total: $TOTAL_BRANCHES"
@@ -379,8 +447,9 @@ echo "========================================="
 echo "Repositories:"
 echo "  Source:       $TOTAL_REPOS"
 echo "  ✅ Synced:    $SUCCESS_REPOS"
-echo "  ⚠️  Failed:    $FAILED_REPOS"
-echo "  🆕 Created:   $CREATED_REPOS"
+echo "  ⚠️  Failed:     $FAILED_REPOS"
+echo "  🆕 Created:    $CREATED_REPOS"
+echo "  🗑️  Deleted:     $DELETED_REPOS"
 echo ""
 echo "Branches:"
 echo "  Total:        $TOTAL_BRANCHES"
@@ -398,6 +467,12 @@ if [ $CREATED_REPOS -gt 0 ]; then
     echo ""
     echo "🆕 Created Repositories:"
     echo "Visit: https://github.com/$TARGET_OWNER"
+fi
+
+# 显示删除的仓库
+if [ $DELETED_REPOS -gt 0 ]; then
+    echo ""
+    echo "🗑️  Deleted Branches from $DELETED_REPOS repositories"
 fi
 
 # 显示失败信息
