@@ -220,9 +220,9 @@ while IFS= read -r SOURCE_REPO; do
         # 添加目标仓库
         git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
         
-        # 推送所有分支和标签
+        # 推送所有分支和标签（使用 --all 自动包含标签）
         echo "   📤 Pushing all branches and tags..."
-        PUSH_OUTPUT=$(git push --all --tags --force target 2>&1)
+        PUSH_OUTPUT=$(git push --all --force target 2>&1)
         PUSH_EXIT=$?
         
         # 检查是否有任何推送成功
