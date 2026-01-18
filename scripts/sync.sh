@@ -225,7 +225,13 @@ while IFS= read -r SOURCE_REPO; do
         PUSH_OUTPUT=$(git push --prune target 2>&1)
         PUSH_EXIT=$?
         
-        if [ $PUSH_EXIT -eq 0 ]; then
+        # 检查是否有 pull refs 拒绝
+        HAS_PULL_REF_REJECTION=false
+        if echo "$PUSH_OUTPUT" | grep -qi "deny updating a hidden ref"; then
+            HAS_PULL_REF_REJECTION=true
+        fi
+        
+        if [ $PUSH_EXIT -eq 0 ] || [ "$HAS_PULL_REF_REJECTION" = "true" ]; then
             # 统计推送的引用数
             PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
             
@@ -240,6 +246,10 @@ while IFS= read -r SOURCE_REPO; do
                 SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             else
                 echo "   ✅ Pushed $PUSHED_COUNT ref(s)"
+                if [ "$HAS_PULL_REF_REJECTION" = "true" ]; then
+                    echo "   ⚠️  Pull refs rejected (expected, branches synced)"
+                    echo "   ⚠️  Note: This is expected and not a failure" >> "$REPORT_FILE"
+                fi
                 echo "   ✅ Status: Synced" >> "$REPORT_FILE"
                 echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
                 echo "      - Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
@@ -269,8 +279,6 @@ while IFS= read -r SOURCE_REPO; do
                 ERROR_REASON="Push rejected"
             elif echo "$PUSH_OUTPUT" | grep -qi "could not read"; then
                 ERROR_REASON="Could not read from remote"
-            elif echo "$PUSH_OUTPUT" | grep -qi "deny updating a hidden ref"; then
-                ERROR_REASON="Pull refs rejected (can be ignored)"
             fi
             
             echo "      Reason: $ERROR_REASON"
@@ -286,16 +294,9 @@ while IFS= read -r SOURCE_REPO; do
             echo "$PUSH_OUTPUT" >> "$ERROR_LOG"
             echo "" >> "$ERROR_LOG"
             
-            # 如果只是 pull refs 被拒绝，不算失败
-            if echo "$PUSH_OUTPUT" | grep -qi "deny updating a hidden ref"; then
-                echo "   ⚠️  Pull refs rejected but branches synced"
-                echo "   ⚠️  Note: This is expected and not a failure" >> "$REPORT_FILE"
-                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + BRANCH_COUNT))
-                SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
-            else
-                FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
-                FAILED_REPOS=$((FAILED_REPOS + 1))
-            fi
+            FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
+            FAILED_REPOS=$((FAILED_REPOS + 1))
+        fi
     else
         echo "   ❌ Clone failed (Exit: $CLONE_EXIT)"
         echo "   📄 Clone output:"
