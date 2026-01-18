@@ -9,7 +9,7 @@
 - 🏷️ **智能命名** - 自动生成合理的目标分支名
 - 🗑️ **自动清理** - 可选删除 workflows 避免权限问题
 - 📊 **详细报告** - 完整的同步统计
-- ⚡ **快速同步** - 使用 shallow clone 加速
+- ⚡ **快速同步** - 使用 git mirror 一次性同步所有分支
 
 ## 🎯 快速开始
 
@@ -48,7 +48,7 @@ git push
 | 源仓库分支情况 | 目标分支命名 | 示例 |
 |--------------|------------|------|
 | 单个分支 | `{repo-name}` | `small-package` |
-| 多个分支 | `{repo-name}-{branch}` | `lede-master`<br>`lede-dev` |
+| 多个分支 | `{repo-name}-{branch}` | `lede-master`, `lede-dev` |
 
 ## 📊 同步报告示例
 
@@ -59,13 +59,11 @@ git push
 Repositories:
   Total:        7
   ✅ Success:   6
-  ⚠️  Failed:    1
-
+  ⚠️  Failed:     1
 Branches:
   Total:        25
   ✅ Success:   23
   ❌ Failed:    2
-
 Success Rate: 92%
 ========================================
 ```
@@ -75,7 +73,7 @@ Success Rate: 92%
 | 选项 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `targetRepo` | string | ✅ | - | 目标仓库 (owner/repo) |
-| `removeWorkflows` | boolean | ❌ | `true` | 是否删除 .github/workflows |
+| `removeWorkflows` | boolean | ❌ | `false` | 是否删除 .github/workflows |
 | `sourceRepos` | array | ✅ | - | 源仓库列表 (owner/repo) |
 
 ## 📝 添加新仓库
@@ -107,7 +105,7 @@ Success Rate: 92%
 
 ```yaml
 schedule:
-  - cron: '0 2 * * *'  # 分 时 日 月 周
+  - cron: '0 2 * *'  # 每天 UTC 02:00
 ```
 
 ## 🎯 手动触发
@@ -123,6 +121,7 @@ schedule:
 ```json
 {
   "targetRepo": "xztxy/github-sync",
+  "removeWorkflows": true,
   "sourceRepos": [
     "kenzok8/small-package"
   ]
@@ -173,13 +172,15 @@ MIT License
 
 ## 主要特点：
 
-1. **✅ 超简化配置** - 只需 `owner/repo`
-2. **✅ 自动检测所有分支** - 无需手动配置
+1. **✅ 超简化配置** - 只需 `owner/repo` 即可自动同步所有分支！
+2. **✅ 自动检测所有分支** - 无需手动配置任何分支
 3. **✅ 智能分支命名**:
    - 单分支: `repo-name`
    - 多分支: `repo-name-branch`
-4. **✅ 自动删除 workflows** - 避免权限问题
-5. **✅ 详细的进度和报告**
-6. **✅ 完整的错误处理**
+4. **✅ 可选删除 workflows** - 避免权限问题
+5. **✅ 详细的进度和报告** - 完整的同步统计
+6. **✅ 完整的错误处理** - 分类错误原因并提供详细日志
+7. **✅ 智能检测更新** - 自动识别 "Everything up-to-date" 和实际推送
+8. **✅ 使用 git mirror** - 一次性克隆所有分支，大幅提升速度
 
 现在你只需要在配置文件中添加 `kenzok8/small-package`，脚本就会自动检测并同步所有分支！🎉
