@@ -220,28 +220,26 @@ while IFS= read -r SOURCE_REPO; do
         # 添加目标仓库
         git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
         
-        # 推送所有分支和标签（使用 --all 自动包含标签）
+        # 推送所有分支和标签
         echo "   📤 Pushing all branches and tags..."
         PUSH_OUTPUT=$(git push --all --force target 2>&1)
         PUSH_EXIT=$?
         
-        # 检查是否有任何推送成功
-        HAS_SUCCESS=false
-        if echo "$PUSH_OUTPUT" | grep -q "^\*"; then
-            HAS_SUCCESS=true
-        fi
-        
-        # 检查是否有 pull refs 拒绝
-        HAS_PULL_REF_REJECTION=false
-        if echo "$PUSH_OUTPUT" | grep -qi "deny updating a hidden ref"; then
-            HAS_PULL_REF_REJECTION=true
-        fi
-        
-        if [ "$HAS_SUCCESS" = "true" ]; then
-            # 统计推送的引用数
-            PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
-            
-            if [ $PUSHED_COUNT -eq 0 ]; then
+        # 直接检查退出码
+        if [ $PUSH_EXIT -eq 0 ]; then
+            # 检查是否真的有推送
+            if echo "$PUSH_OUTPUT" | grep -q "^\*"; then
+                # 有推送
+                PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
+                echo "   ✅ Pushed $PUSHED_COUNT ref(s)"
+                echo "   ✅ Status: Synced" >> "$REPORT_FILE"
+                echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
+                echo "      - Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
+                echo "      - Date: $COMMIT_DATE" >> "$REPORT_FILE"
+                echo "      - Refs pushed: $PUSHED_COUNT" >> "$REPORT_FILE"
+                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + PUSHED_COUNT))
+            elif echo "$PUSH_OUTPUT" | grep -qi "Everything up-to-date"; then
+                # 没有更新
                 echo "   ✅ No changes detected"
                 echo "   ✅ Status: Up-to-date" >> "$REPORT_FILE"
                 echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
@@ -249,23 +247,18 @@ while IFS= read -r SOURCE_REPO; do
                 echo "      - Date: $COMMIT_DATE" >> "$REPORT_FILE"
                 echo "      - Note: No changes to push" >> "$REPORT_FILE"
                 SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + BRANCH_COUNT))
-                SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             else
-                echo "   ✅ Pushed $PUSHED_COUNT ref(s)"
-                if [ "$HAS_PULL_REF_REJECTION" = "true" ]; then
-                    echo "   ⚠️  Pull refs rejected (expected, branches synced)"
-                    echo "   ⚠️  Note: This is expected and not a failure" >> "$REPORT_FILE"
-                fi
+                # 其他成功情况
+                echo "   ✅ Push completed"
                 echo "   ✅ Status: Synced" >> "$REPORT_FILE"
                 echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
                 echo "      - Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
                 echo "      - Date: $COMMIT_DATE" >> "$REPORT_FILE"
-                echo "      - Refs pushed: $PUSHED_COUNT" >> "$REPORT_FILE"
-                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + PUSHED_COUNT))
-                SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
+                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + BRANCH_COUNT))
             fi
+            SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
         else
-            echo "   ❌ Push failed"
+            echo "   ❌ Push failed (Exit: $PUSH_EXIT)"
             echo "   📄 Error output:"
             echo "$PUSH_OUTPUT" | sed 's/^/      /'
             
@@ -285,6 +278,8 @@ while IFS= read -r SOURCE_REPO; do
                 ERROR_REASON="Push rejected"
             elif echo "$PUSH_OUTPUT" | grep -qi "could not read"; then
                 ERROR_REASON="Could not read from remote"
+            elif echo "$PUSH_OUTPUT" | grep -qi "deny updating a hidden ref"; then
+                ERROR_REASON="Pull refs rejected (expected, branches synced)"
             fi
             
             echo "      Reason: $ERROR_REASON"
