@@ -61,12 +61,7 @@ create_target_repo() {
             -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/user/repos" \
-            -d "{
-                \"name\": \"${REPO_NAME}\",
-                \"description\": \"${DESCRIPTION}\",
-                \"private\": false,
-                \"auto_init\": false
-            }")
+            -d "{\"name\": \"${REPO_NAME}\", \"description\": \"${DESCRIPTION}\", \"private\": false, \"auto_init\": false}")
         
         if echo "$CREATE_RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
             echo "   ✅ Repository created"
@@ -226,7 +221,7 @@ while IFS= read -r SOURCE_REPO; do
         git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
         
         # 推送镜像
-        echo "   � Pushing mirror (all branches)..."
+        echo "   📤 Pushing mirror (all branches)..."
         PUSH_OUTPUT=$(git push --mirror target 2>&1)
         PUSH_EXIT=$?
         
@@ -234,32 +229,27 @@ while IFS= read -r SOURCE_REPO; do
             # 检查是否有更新
             if echo "$PUSH_OUTPUT" | grep -qi "Everything up-to-date"; then
                 echo "   ✅ No changes detected"
-                {
-                    echo "   ✅ Status: Up-to-date"
-                    echo "      - Commit: ${LATEST_COMMIT:0:8}"
-                    echo "      - Message: $COMMIT_MESSAGE"
-                    echo "      - Date: $COMMIT_DATE"
-                    echo "      - Note: No changes to push"
-                } >> "$REPORT_FILE"
+                echo "   ✅ Status: Up-to-date" >> "$REPORT_FILE"
+                echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
+                echo "      - Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
+                echo "      - Date: $COMMIT_DATE" >> "$REPORT_FILE"
+                echo "      - Note: No changes to push" >> "$REPORT_FILE"
                 SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + BRANCH_COUNT))
                 SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             else
                 # 统计推送的分支数
                 PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "$BRANCH_COUNT")
                 echo "   ✅ Pushed $PUSHED_COUNT branch(es)"
-                {
-                    echo "   ✅ Status: Synced"
-                    echo "      - Commit: ${LATEST_COMMIT:0:8}"
-                    echo "      - Message: $COMMIT_MESSAGE"
-                    echo "      - Date: $COMMIT_DATE"
-                    echo "      - Branches pushed: $PUSHED_COUNT"
-                } >> "$REPORT_FILE"
+                echo "   ✅ Status: Synced" >> "$REPORT_FILE"
+                echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
+                echo "      - Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
+                echo "      - Date: $COMMIT_DATE" >> "$REPORT_FILE"
+                echo "      - Branches pushed: $PUSHED_COUNT" >> "$REPORT_FILE"
                 SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + PUSHED_COUNT))
                 SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             fi
         else
             echo "   ❌ Push failed (Exit: $PUSH_EXIT)"
-            # 显示详细错误
             echo "   📄 Error output:"
             echo "$PUSH_OUTPUT" | sed 's/^/      /'
             
@@ -323,29 +313,27 @@ while IFS= read -r SOURCE_REPO; do
 done <<< "$SOURCE_REPOS"
 
 # 总结
-{
-    echo "========================================="
-    echo "## 📊 Final Summary"
-    echo ""
-    echo "### Repositories"
-    echo "- Total: $TOTAL_REPOS"
-    echo "- ✅ Fully Synced: $SUCCESS_REPOS"
-    echo "- ⚠️  Partial/Failed: $FAILED_REPOS"
-    echo "- 🆕 Created: $CREATED_REPOS"
-    echo ""
-    echo "### Branches"
-    echo "- Total: $TOTAL_BRANCHES"
-    echo "- ✅ Success: $SUCCESS_BRANCHES"
-    echo "- ❌ Failed: $FAILED_BRANCHES"
-    echo ""
-    if [ $TOTAL_BRANCHES -gt 0 ]; then
-        SUCCESS_RATE=$((SUCCESS_BRANCHES * 100 / TOTAL_BRANCHES))
-        echo "### Success Rate: ${SUCCESS_RATE}%"
-    fi
-    echo ""
-    echo "Completed: $(date)"
-    echo "========================================="
-} >> "$REPORT_FILE"
+echo "=========================================" >> "$REPORT_FILE"
+echo "## 📊 Final Summary" >> "$REPORT_FILE"
+echo "" >> "$REPORT_FILE"
+echo "### Repositories" >> "$REPORT_FILE"
+echo "- Total: $TOTAL_REPOS" >> "$REPORT_FILE"
+echo "- ✅ Fully Synced: $SUCCESS_REPOS" >> "$REPORT_FILE"
+echo "- ⚠️  Partial/Failed: $FAILED_REPOS" >> "$REPORT_FILE"
+echo "- 🆕 Created: $CREATED_REPOS" >> "$REPORT_FILE"
+echo "" >> "$REPORT_FILE"
+echo "### Branches" >> "$REPORT_FILE"
+echo "- Total: $TOTAL_BRANCHES" >> "$REPORT_FILE"
+echo "- ✅ Success: $SUCCESS_BRANCHES" >> "$REPORT_FILE"
+echo "- ❌ Failed: $FAILED_BRANCHES" >> "$REPORT_FILE"
+echo "" >> "$REPORT_FILE"
+if [ $TOTAL_BRANCHES -gt 0 ]; then
+    SUCCESS_RATE=$((SUCCESS_BRANCHES * 100 / TOTAL_BRANCHES))
+    echo "### Success Rate: ${SUCCESS_RATE}%" >> "$REPORT_FILE"
+fi
+echo "" >> "$REPORT_FILE"
+echo "Completed: $(date)" >> "$REPORT_FILE"
+echo "=========================================" >> "$REPORT_FILE"
 
 echo "========================================="
 echo "📊 FINAL SUMMARY"
