@@ -222,7 +222,7 @@ while IFS= read -r SOURCE_REPO; do
         
         # 删除 pull refs（避免 GitHub 拒绝）
         echo "   🗑️  Removing pull refs..."
-        git for-each-ref --format='%(refname:short)' refs/pull/ | xargs -I {} git update-ref -d {} 2>/dev/null || true
+        git for-each-ref --format='%(refname:short)' refs/pull/ | while read ref; do git update-ref -d "$ref" 2>/dev/null || true; done
         
         # 推送所有分支和标签
         echo "   📤 Pushing all branches and tags..."
@@ -231,7 +231,10 @@ while IFS= read -r SOURCE_REPO; do
         
         if [ $PUSH_EXIT -eq 0 ]; then
             # 统计推送的引用数
-            PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
+            PUSHED_COUNT=0
+            if echo "$PUSH_OUTPUT" | grep -q "^\*"; then
+                PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
+            fi
             
             if [ $PUSHED_COUNT -eq 0 ]; then
                 echo "   ✅ No changes detected"
