@@ -220,21 +220,14 @@ while IFS= read -r SOURCE_REPO; do
         # 添加目标仓库
         git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
         
-        # 删除 pull refs（避免 GitHub 拒绝）
-        echo "   🗑️  Removing pull refs..."
-        git for-each-ref --format='%(refname:short)' refs/pull/ | while read ref; do git update-ref -d "$ref" 2>/dev/null || true; done
-        
-        # 推送所有分支和标签
-        echo "   📤 Pushing all branches and tags..."
-        PUSH_OUTPUT=$(git push --mirror target 2>&1)
+        # 推送所有引用（使用 --prune 清理远程不需要的引用）
+        echo "   📤 Pushing all refs..."
+        PUSH_OUTPUT=$(git push --prune target 2>&1)
         PUSH_EXIT=$?
         
         if [ $PUSH_EXIT -eq 0 ]; then
             # 统计推送的引用数
-            PUSHED_COUNT=0
-            if echo "$PUSH_OUTPUT" | grep -q "^\*"; then
-                PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
-            fi
+            PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
             
             if [ $PUSHED_COUNT -eq 0 ]; then
                 echo "   ✅ No changes detected"
@@ -276,6 +269,8 @@ while IFS= read -r SOURCE_REPO; do
                 ERROR_REASON="Push rejected"
             elif echo "$PUSH_OUTPUT" | grep -qi "could not read"; then
                 ERROR_REASON="Could not read from remote"
+            elif echo "$PUSH_OUTPUT" | grep -qi "deny updating a hidden ref"; then
+                ERROR_REASON="Pull refs rejected (can be ignored)"
             fi
             
             echo "      Reason: $ERROR_REASON"
@@ -291,9 +286,16 @@ while IFS= read -r SOURCE_REPO; do
             echo "$PUSH_OUTPUT" >> "$ERROR_LOG"
             echo "" >> "$ERROR_LOG"
             
-            FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
-            FAILED_REPOS=$((FAILED_REPOS + 1))
-        fi
+            # 如果只是 pull refs 被拒绝，不算失败
+            if echo "$PUSH_OUTPUT" | grep -qi "deny updating a hidden ref"; then
+                echo "   ⚠️  Pull refs rejected but branches synced"
+                echo "   ⚠️  Note: This is expected and not a failure" >> "$REPORT_FILE"
+                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + BRANCH_COUNT))
+                SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
+            else
+                FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
+                FAILED_REPOS=$((FAILED_REPOS + 1))
+            fi
     else
         echo "   ❌ Clone failed (Exit: $CLONE_EXIT)"
         echo "   📄 Clone output:"
