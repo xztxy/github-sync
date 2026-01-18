@@ -220,13 +220,17 @@ while IFS= read -r SOURCE_REPO; do
         # 添加目标仓库
         git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
         
-        # 推送分支和标签（不推送 pull request 引用）
-        echo "   📤 Pushing branches and tags..."
-        PUSH_OUTPUT=$(git push target --all --tags --force 2>&1)
+        # 删除 pull refs（避免 GitHub 拒绝）
+        echo "   🗑️  Removing pull refs..."
+        git for-each-ref --format='%(refname:short)' refs/pull/ | xargs -I {} git update-ref -d {} 2>/dev/null || true
+        
+        # 推送所有分支和标签
+        echo "   📤 Pushing all branches and tags..."
+        PUSH_OUTPUT=$(git push --mirror target 2>&1)
         PUSH_EXIT=$?
         
         if [ $PUSH_EXIT -eq 0 ]; then
-            # 统计推送的分支数
+            # 统计推送的引用数
             PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
             
             if [ $PUSHED_COUNT -eq 0 ]; then
