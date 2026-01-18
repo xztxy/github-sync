@@ -9,6 +9,7 @@
     "MaaXYZ/MaaFramework",
     "fanchmwrt/fanchmwrt",
     "kenzok8/openwrt-packages",
+    "vercel-labs/agent-browser",
     "kenzok8/small-package"
   ]
 }
