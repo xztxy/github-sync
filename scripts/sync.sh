@@ -220,10 +220,16 @@ while IFS= read -r SOURCE_REPO; do
         # 添加目标仓库
         git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
         
-        # 推送所有引用（使用 --prune 清理远程不需要的引用）
-        echo "   📤 Pushing all refs..."
-        PUSH_OUTPUT=$(git push --prune target 2>&1)
+        # 推送所有分支和标签
+        echo "   📤 Pushing all branches and tags..."
+        PUSH_OUTPUT=$(git push --all --tags --force target 2>&1)
         PUSH_EXIT=$?
+        
+        # 检查是否有任何推送成功
+        HAS_SUCCESS=false
+        if echo "$PUSH_OUTPUT" | grep -q "^\*"; then
+            HAS_SUCCESS=true
+        fi
         
         # 检查是否有 pull refs 拒绝
         HAS_PULL_REF_REJECTION=false
@@ -231,7 +237,7 @@ while IFS= read -r SOURCE_REPO; do
             HAS_PULL_REF_REJECTION=true
         fi
         
-        if [ $PUSH_EXIT -eq 0 ] || [ "$HAS_PULL_REF_REJECTION" = "true" ]; then
+        if [ "$HAS_SUCCESS" = "true" ]; then
             # 统计推送的引用数
             PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
             
@@ -259,7 +265,7 @@ while IFS= read -r SOURCE_REPO; do
                 SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             fi
         else
-            echo "   ❌ Push failed (Exit: $PUSH_EXIT)"
+            echo "   ❌ Push failed"
             echo "   📄 Error output:"
             echo "$PUSH_OUTPUT" | sed 's/^/      /'
             
