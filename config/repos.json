@@ -10,6 +10,7 @@
     "fanchmwrt/fanchmwrt",
     "kenzok8/openwrt-packages",
     "vercel-labs/agent-browser",
+    "vercel-labs/json-render",
     "kenzok8/small-package"
   ]
 }
