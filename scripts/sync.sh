@@ -8,14 +8,14 @@ ERROR_LOG="${GITHUB_WORKSPACE:-$(pwd)}/sync_errors.log"
 
 echo "========================================="
 echo "  🚀 GitHub Repository Sync"
-echo "  📦 Separate Repositories Mode"
+echo "  📦 Mirror Mode (Fast & Efficient)"
 echo "========================================="
 echo ""
 
 # 初始化报告
 echo "=== Repository Sync Report ===" > "$REPORT_FILE"
 echo "Sync Time: $(date)" >> "$REPORT_FILE"
-echo "Mode: Each source repo → separate target repo" >> "$REPORT_FILE"
+echo "Mode: Git mirror (sync all branches at once)" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 
 echo "=== Error Log ===" > "$ERROR_LOG"
@@ -85,6 +85,27 @@ create_target_repo() {
     fi
 }
 
+# 函数：删除 workflows
+remove_workflows() {
+    local REPO_DIR=$1
+    
+    if [ "$REMOVE_WORKFLOWS" = "true" ]; then
+        if [ -d "$REPO_DIR/.github/workflows" ]; then
+            echo "   🗑️  Removing workflows..."
+            rm -rf "$REPO_DIR/.github/workflows"
+            if [ -f "$REPO_DIR/.github/dependabot.yml" ]; then
+                rm -f "$REPO_DIR/.github/dependabot.yml"
+            fi
+            if [ -d "$REPO_DIR/.github" ] && [ -z "$(ls -A "$REPO_DIR/.github" 2>/dev/null)" ]; then
+                rm -rf "$REPO_DIR/.github"
+            fi
+            cd "$REPO_DIR"
+            git add -A
+            git commit -m "chore: remove workflows for sync" --allow-empty > /dev/null 2>&1 || true
+        fi
+    fi
+}
+
 # 遍历每个源仓库
 while IFS= read -r SOURCE_REPO; do
     [ -z "$SOURCE_REPO" ] && continue
@@ -148,168 +169,155 @@ while IFS= read -r SOURCE_REPO; do
     echo "$BRANCH_LIST" | sed 's/^/   ✓ /'
     echo ""
     
+    TOTAL_BRANCHES=$((TOTAL_BRANCHES + BRANCH_COUNT))
+    
     echo "### Branches: $BRANCH_COUNT" >> "$REPORT_FILE"
     echo '```' >> "$REPORT_FILE"
     echo "$BRANCH_LIST" >> "$REPORT_FILE"
     echo '```' >> "$REPORT_FILE"
     echo "" >> "$REPORT_FILE"
     
-    REPO_SUCCESS=0
-    REPO_FAILED=0
+    # 创建临时目录
+    TEMP_DIR=$(mktemp -d)
+    ORIGINAL_DIR=$(pwd)
     
-    # 遍历每个分支
-    while IFS= read -r BRANCH_NAME; do
-        [ -z "$BRANCH_NAME" ] && continue
-        
-        TOTAL_BRANCHES=$((TOTAL_BRANCHES + 1))
-        
-        echo "-------------------------------------------"
-        echo "🌿 Branch: $BRANCH_NAME"
-        TEMP_DIR=$(mktemp -d)
-        ORIGINAL_DIR=$(pwd)
-        
-        cd "$TEMP_DIR" || {
-            echo "   ❌ Temp dir error"
-            echo "   - $BRANCH_NAME: ❌ FAILED (Temp dir)" >> "$REPORT_FILE"
-            echo "[$SOURCE_REPO/$BRANCH_NAME] Temp dir error" >> "$ERROR_LOG"
-            FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
-            REPO_FAILED=$((REPO_FAILED + 1))
+    cd "$TEMP_DIR" || {
+        echo "❌ Temp dir error"
+        echo "- Status: ❌ FAILED (Temp dir)" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+        echo "[$SOURCE_REPO] Temp dir error" >> "$ERROR_LOG"
+        FAILED_REPOS=$((FAILED_REPOS + 1))
+        FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
+        cd "$ORIGINAL_DIR"
+        rm -rf "$TEMP_DIR"
+        continue
+    }
+    
+    # 克隆镜像仓库
+    echo "📥 Cloning mirror (all branches)..."
+    CLONE_OUTPUT=$(git clone --mirror "$SOURCE_URL" mirror_repo 2>&1)
+    CLONE_EXIT=$?
+    
+    if [ $CLONE_EXIT -eq 0 ]; then
+        cd mirror_repo || {
+            echo "❌ Directory error"
+            echo "- Status: ❌ FAILED (Directory)" >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+            echo "[$SOURCE_REPO] Directory error" >> "$ERROR_LOG"
+            FAILED_REPOS=$((FAILED_REPOS + 1))
+            FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
+            cd "$ORIGINAL_DIR"
+            rm -rf "$TEMP_DIR"
             continue
         }
         
-        # 使用完整克隆而不是浅克隆
-        echo "   📥 Cloning (full clone)..."
-        CLONE_OUTPUT=$(git clone --single-branch --branch "$BRANCH_NAME" "$SOURCE_URL" source_repo 2>&1)
-        CLONE_EXIT=$?
+        # 删除 workflows
+        remove_workflows "$(pwd)"
         
-        if [ $CLONE_EXIT -eq 0 ]; then
-            cd source_repo || {
-                echo "   ❌ Directory error"
-                echo "   - $BRANCH_NAME: ❌ FAILED (Directory)" >> "$REPORT_FILE"
-                echo "[$SOURCE_REPO/$BRANCH_NAME] Directory error" >> "$ERROR_LOG"
-                FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
-                REPO_FAILED=$((REPO_FAILED + 1))
-                cd "$ORIGINAL_DIR"
-                rm -rf "$TEMP_DIR"
-                continue
-            }
-            
-            # 可选：删除 workflows（根据配置）
-            if [ "$REMOVE_WORKFLOWS" = "true" ]; then
-                if [ -d ".github/workflows" ]; then
-                    echo "   🗑️  Removing workflows..."
-                    rm -rf .github/workflows
-                    if [ -f ".github/dependabot.yml" ]; then
-                        rm -f .github/dependabot.yml
-                    fi
-                    if [ -d ".github" ] && [ -z "$(ls -A .github 2>/dev/null)" ]; then
-                        rm -rf .github
-                    fi
-                    git add -A
-                    git commit -m "chore: remove workflows" --allow-empty > /dev/null 2>&1 || true
-                fi
-            fi
-            
-            LATEST_COMMIT=$(git log -1 --format="%H" 2>/dev/null || echo "unknown")
-            COMMIT_MESSAGE=$(git log -1 --format="%s" 2>/dev/null || echo "No message")
-            COMMIT_DATE=$(git log -1 --format="%ci" 2>/dev/null || echo "unknown")
-            
-            echo "   📝 ${LATEST_COMMIT:0:8} - $COMMIT_MESSAGE"
-            
-            # 添加目标仓库
-            git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
-            
-            # 先 fetch 目标分支
-            echo "   📥 Fetching target branch..."
-            FETCH_OUTPUT=$(git fetch target "$BRANCH_NAME" 2>&1)
-            
-            # 推送并捕获详细输出
-            echo "   📤 Pushing to $TARGET_REPO/$BRANCH_NAME..."
-            PUSH_OUTPUT=$(git push target "HEAD:refs/heads/$BRANCH_NAME" --force 2>&1)
-            PUSH_EXIT=$?
-            
-            if [ $PUSH_EXIT -eq 0 ]; then
-                echo "   ✅ Success"
-                echo "   ✅ $BRANCH_NAME" >> "$REPORT_FILE"
-                echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
-                echo "      - Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
-                echo "      - Date: $COMMIT_DATE" >> "$REPORT_FILE"
-                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + 1))
-                REPO_SUCCESS=$((REPO_SUCCESS + 1))
+        # 获取最新提交信息
+        LATEST_COMMIT=$(git log -1 --format="%H" 2>/dev/null || echo "unknown")
+        COMMIT_MESSAGE=$(git log -1 --format="%s" 2>/dev/null || echo "No message")
+        COMMIT_DATE=$(git log -1 --format="%ci" 2>/dev/null || echo "unknown")
+        
+        echo "   📝 ${LATEST_COMMIT:0:8} - $COMMIT_MESSAGE"
+        echo "   📅 $COMMIT_DATE"
+        
+        # 添加目标仓库
+        git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
+        
+        # 推送镜像
+        echo "   � Pushing mirror (all branches)..."
+        PUSH_OUTPUT=$(git push --mirror target 2>&1)
+        PUSH_EXIT=$?
+        
+        if [ $PUSH_EXIT -eq 0 ]; then
+            # 检查是否有更新
+            if echo "$PUSH_OUTPUT" | grep -qi "Everything up-to-date"; then
+                echo "   ✅ No changes detected"
+                {
+                    echo "   ✅ Status: Up-to-date"
+                    echo "      - Commit: ${LATEST_COMMIT:0:8}"
+                    echo "      - Message: $COMMIT_MESSAGE"
+                    echo "      - Date: $COMMIT_DATE"
+                    echo "      - Note: No changes to push"
+                } >> "$REPORT_FILE"
+                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + BRANCH_COUNT))
+                SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             else
-                echo "   ❌ Push failed (Exit: $PUSH_EXIT)"
-                # 显示详细错误
-                echo "   📄 Error output:"
-                echo "$PUSH_OUTPUT" | sed 's/^/      /'
-                
-                # 分析错误原因
-                ERROR_REASON="Unknown"
-                if echo "$PUSH_OUTPUT" | grep -qi "refusing to allow.*workflow"; then
-                    ERROR_REASON="Workflow permission denied"
-                elif echo "$PUSH_OUTPUT" | grep -qi "protected branch"; then
-                    ERROR_REASON="Protected branch"
-                elif echo "$PUSH_OUTPUT" | grep -qi "authentication\|permission denied"; then
-                    ERROR_REASON="Authentication/Permission denied"
-                elif echo "$PUSH_OUTPUT" | grep -qi "403"; then
-                    ERROR_REASON="Forbidden (403)"
-                elif echo "$PUSH_OUTPUT" | grep -qi "repository not found"; then
-                    ERROR_REASON="Repository not found"
-                elif echo "$PUSH_OUTPUT" | grep -qi "did not receive expected object"; then
-                    ERROR_REASON="Object not found (shallow clone issue)"
-                elif echo "$PUSH_OUTPUT" | grep -qi "failed to push"; then
-                    ERROR_REASON="Push rejected"
-                fi
-                
-                echo "      Reason: $ERROR_REASON"
-                echo "   ❌ $BRANCH_NAME: $ERROR_REASON" >> "$REPORT_FILE"
-                
-                # 记录详细错误
-                echo "=========================================" >> "$ERROR_LOG"
-                echo "[$SOURCE_REPO/$BRANCH_NAME → $TARGET_REPO/$BRANCH_NAME]" >> "$ERROR_LOG"
-                echo "Exit Code: $PUSH_EXIT" >> "$ERROR_LOG"
-                echo "Error Reason: $ERROR_REASON" >> "$ERROR_LOG"
-                echo "" >> "$ERROR_LOG"
-                echo "Full Output:" >> "$ERROR_LOG"
-                echo "$PUSH_OUTPUT" >> "$ERROR_LOG"
-                echo "" >> "$ERROR_LOG"
-                
-                FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
-                REPO_FAILED=$((REPO_FAILED + 1))
+                # 统计推送的分支数
+                PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "$BRANCH_COUNT")
+                echo "   ✅ Pushed $PUSHED_COUNT branch(es)"
+                {
+                    echo "   ✅ Status: Synced"
+                    echo "      - Commit: ${LATEST_COMMIT:0:8}"
+                    echo "      - Message: $COMMIT_MESSAGE"
+                    echo "      - Date: $COMMIT_DATE"
+                    echo "      - Branches pushed: $PUSHED_COUNT"
+                } >> "$REPORT_FILE"
+                SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + PUSHED_COUNT))
+                SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             fi
         else
-            echo "   ❌ Clone failed (Exit: $CLONE_EXIT)"
-            echo "   📄 Clone output:"
-            echo "$CLONE_OUTPUT" | sed 's/^/      /'
+            echo "   ❌ Push failed (Exit: $PUSH_EXIT)"
+            # 显示详细错误
+            echo "   📄 Error output:"
+            echo "$PUSH_OUTPUT" | sed 's/^/      /'
             
-            echo "   ❌ $BRANCH_NAME: Clone error" >> "$REPORT_FILE"
+            # 分析错误原因
+            ERROR_REASON="Unknown"
+            if echo "$PUSH_OUTPUT" | grep -qi "refusing to allow.*workflow"; then
+                ERROR_REASON="Workflow permission denied"
+            elif echo "$PUSH_OUTPUT" | grep -qi "protected branch"; then
+                ERROR_REASON="Protected branch"
+            elif echo "$PUSH_OUTPUT" | grep -qi "authentication\|permission denied"; then
+                ERROR_REASON="Authentication/Permission denied"
+            elif echo "$PUSH_OUTPUT" | grep -qi "403"; then
+                ERROR_REASON="Forbidden (403)"
+            elif echo "$PUSH_OUTPUT" | grep -qi "repository not found"; then
+                ERROR_REASON="Repository not found"
+            elif echo "$PUSH_OUTPUT" | grep -qi "failed to push"; then
+                ERROR_REASON="Push rejected"
+            elif echo "$PUSH_OUTPUT" | grep -qi "could not read"; then
+                ERROR_REASON="Could not read from remote"
+            fi
+            
+            echo "      Reason: $ERROR_REASON"
+            echo "   ❌ Status: $ERROR_REASON" >> "$REPORT_FILE"
+            
+            # 记录详细错误
             echo "=========================================" >> "$ERROR_LOG"
-            echo "[$SOURCE_REPO/$BRANCH_NAME]" >> "$ERROR_LOG"
-            echo "Clone failed (Exit: $CLONE_EXIT)" >> "$ERROR_LOG"
+            echo "[$SOURCE_REPO → $TARGET_REPO]" >> "$ERROR_LOG"
+            echo "Exit Code: $PUSH_EXIT" >> "$ERROR_LOG"
+            echo "Error Reason: $ERROR_REASON" >> "$ERROR_LOG"
             echo "" >> "$ERROR_LOG"
-            echo "Output:" >> "$ERROR_LOG"
-            echo "$CLONE_OUTPUT" >> "$ERROR_LOG"
+            echo "Full Output:" >> "$ERROR_LOG"
+            echo "$PUSH_OUTPUT" >> "$ERROR_LOG"
             echo "" >> "$ERROR_LOG"
             
-            FAILED_BRANCHES=$((FAILED_BRANCHES + 1))
-            REPO_FAILED=$((REPO_FAILED + 1))
+            FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
+            FAILED_REPOS=$((FAILED_REPOS + 1))
         fi
-        
-        cd "$ORIGINAL_DIR"
-        rm -rf "$TEMP_DIR"
-    done <<< "$BRANCH_LIST"
-    
-    echo ""
-    if [ $REPO_FAILED -eq 0 ]; then
-        echo "✅ Repository: All $REPO_SUCCESS branches synced"
-        SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
     else
-        echo "⚠️  Repository: $REPO_SUCCESS succeeded, $REPO_FAILED failed"
+        echo "   ❌ Clone failed (Exit: $CLONE_EXIT)"
+        echo "   📄 Clone output:"
+        echo "$CLONE_OUTPUT" | sed 's/^/      /'
+        
+        echo "   ❌ Status: Clone error" >> "$REPORT_FILE"
+        echo "=========================================" >> "$ERROR_LOG"
+        echo "[$SOURCE_REPO]" >> "$ERROR_LOG"
+        echo "Clone failed (Exit: $CLONE_EXIT)" >> "$ERROR_LOG"
+        echo "" >> "$ERROR_LOG"
+        echo "Output:" >> "$ERROR_LOG"
+        echo "$CLONE_OUTPUT" >> "$ERROR_LOG"
+        echo "" >> "$ERROR_LOG"
+        
+        FAILED_BRANCHES=$((FAILED_BRANCHES + BRANCH_COUNT))
         FAILED_REPOS=$((FAILED_REPOS + 1))
     fi
     
-    echo "" >> "$REPORT_FILE"
-    echo "**Summary:** ✅ $REPO_SUCCESS / ❌ $REPO_FAILED" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
+    # 清理
+    cd "$ORIGINAL_DIR"
+    rm -rf "$TEMP_DIR"
     
     echo ""
 done <<< "$SOURCE_REPOS"
