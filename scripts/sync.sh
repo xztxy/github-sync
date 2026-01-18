@@ -220,14 +220,16 @@ while IFS= read -r SOURCE_REPO; do
         # 添加目标仓库
         git remote add target "https://x-access-token:${GITHUB_TOKEN}@github.com/${TARGET_REPO}.git" 2>/dev/null
         
-        # 推送镜像
-        echo "   📤 Pushing mirror (all branches)..."
-        PUSH_OUTPUT=$(git push --mirror target 2>&1)
+        # 推送分支和标签（不推送 pull request 引用）
+        echo "   📤 Pushing branches and tags..."
+        PUSH_OUTPUT=$(git push target --all --tags --force 2>&1)
         PUSH_EXIT=$?
         
         if [ $PUSH_EXIT -eq 0 ]; then
-            # 检查是否有更新
-            if echo "$PUSH_OUTPUT" | grep -qi "Everything up-to-date"; then
+            # 统计推送的分支数
+            PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "0")
+            
+            if [ $PUSHED_COUNT -eq 0 ]; then
                 echo "   ✅ No changes detected"
                 echo "   ✅ Status: Up-to-date" >> "$REPORT_FILE"
                 echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
@@ -237,14 +239,12 @@ while IFS= read -r SOURCE_REPO; do
                 SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + BRANCH_COUNT))
                 SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             else
-                # 统计推送的分支数
-                PUSHED_COUNT=$(echo "$PUSH_OUTPUT" | grep -c "^\*" || echo "$BRANCH_COUNT")
-                echo "   ✅ Pushed $PUSHED_COUNT branch(es)"
+                echo "   ✅ Pushed $PUSHED_COUNT ref(s)"
                 echo "   ✅ Status: Synced" >> "$REPORT_FILE"
                 echo "      - Commit: ${LATEST_COMMIT:0:8}" >> "$REPORT_FILE"
                 echo "      - Message: $COMMIT_MESSAGE" >> "$REPORT_FILE"
                 echo "      - Date: $COMMIT_DATE" >> "$REPORT_FILE"
-                echo "      - Branches pushed: $PUSHED_COUNT" >> "$REPORT_FILE"
+                echo "      - Refs pushed: $PUSHED_COUNT" >> "$REPORT_FILE"
                 SUCCESS_BRANCHES=$((SUCCESS_BRANCHES + PUSHED_COUNT))
                 SUCCESS_REPOS=$((SUCCESS_REPOS + 1))
             fi
