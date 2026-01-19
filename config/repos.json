@@ -11,6 +11,8 @@
     "kenzok8/openwrt-packages",
     "vercel-labs/agent-browser",
     "vercel-labs/json-render",
+    "accomplish-ai/openwork",
+    "OpenBMB/MiniCPM-V",
     "kenzok8/small-package"
   ]
 }
