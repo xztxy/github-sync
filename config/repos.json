@@ -2,6 +2,7 @@
   "targetOwner": "xztxy",
   "removeWorkflows": false,
   "sourceRepos": [
+    "lencx/Noi",
     "Zalafina/QKeyMapper",
     "coolsnowwolf/lede",
     "immortalwrt/immortalwrt",
