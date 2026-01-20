@@ -3,6 +3,7 @@
   "removeWorkflows": false,
   "sourceRepos": [
     "lencx/Noi",
+    "wang161113/KeyPresserHardware",
     "Zalafina/QKeyMapper",
     "coolsnowwolf/lede",
     "immortalwrt/immortalwrt",
