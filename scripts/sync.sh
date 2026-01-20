@@ -84,23 +84,17 @@ create_target_repo() {
     fi
 }
 
-# 函数：删除 workflows
+# 函数：删除 .github 目录
 remove_workflows() {
     local REPO_DIR=$1
     
     if [ "$REMOVE_WORKFLOWS" = "true" ]; then
-        if [ -d "$REPO_DIR/.github/workflows" ]; then
-            echo "   🗑️  Removing workflows..."
-            rm -rf "$REPO_DIR/.github/workflows"
-            if [ -f "$REPO_DIR/.github/dependabot.yml" ]; then
-                rm -f "$REPO_DIR/.github/dependabot.yml"
-            fi
-            if [ -d "$REPO_DIR/.github" ] && [ -z "$(ls -A "$REPO_DIR/.github" 2>/dev/null)" ]; then
-                rm -rf "$REPO_DIR/.github"
-            fi
+        if [ -d "$REPO_DIR/.github" ]; then
+            echo "   🗑️  Removing .github directory..."
+            rm -rf "$REPO_DIR/.github"
             cd "$REPO_DIR"
             git add -A
-            git commit -m "chore: remove workflows for sync" --allow-empty > /dev/null 2>&1 || true
+            git commit -m "chore: remove .github for sync" --allow-empty > /dev/null 2>&1 || true
         fi
     fi
 }
