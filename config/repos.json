@@ -3,6 +3,7 @@
   "removeWorkflows": false,
   "sourceRepos": [
     "lencx/Noi",
+    "xcz-ns/OpenWrt-Build",
     "wang161113/KeyPresserHardware",
     "Zalafina/QKeyMapper",
     "coolsnowwolf/lede",
