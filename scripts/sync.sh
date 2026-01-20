@@ -53,6 +53,7 @@ create_target_repo() {
     
     if [ "$HTTP_CODE" = "200" ]; then
         echo "   ✅ Repository exists"
+        REPO_CREATED="false"
         return 0
     elif [ "$HTTP_CODE" = "404" ]; then
         echo "   📝 Creating repository..."
@@ -66,16 +67,19 @@ create_target_repo() {
         if echo "$CREATE_RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
             echo "   ✅ Repository created"
             CREATED_REPOS=$((CREATED_REPOS + 1))
+            REPO_CREATED="true"
             sleep 2
             return 0
         else
             echo "   ❌ Failed to create"
             ERROR_MSG=$(echo "$CREATE_RESPONSE" | jq -r '.message // "Unknown error"')
             echo "      Error: $ERROR_MSG"
+            REPO_CREATED="error"
             return 1
         fi
     else
         echo "   ❌ Failed to check (HTTP $HTTP_CODE)"
+        REPO_CREATED="error"
         return 1
     fi
 }
@@ -206,8 +210,12 @@ while IFS= read -r SOURCE_REPO; do
             continue
         }
         
-        # 删除 workflows
-        remove_workflows "$(pwd)"
+        # 删除 workflows (仅在仓库已存在时执行，避免同步workflows)
+        if [ "$REPO_CREATED" = "false" ]; then
+            remove_workflows "$(pwd)"
+        else
+            echo "   ⏭️  Skipping workflows removal (new repository)"
+        fi
         
         # 获取最新提交信息
         LATEST_COMMIT=$(git log -1 --format="%H" 2>/dev/null || echo "unknown")
