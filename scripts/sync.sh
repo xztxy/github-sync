@@ -204,11 +204,16 @@ while IFS= read -r SOURCE_REPO; do
             continue
         }
         
-        # 删除 workflows (仅在仓库已存在时执行，避免同步workflows)
+        # 删除 .github (仅在仓库已存在时执行，避免同步.github)
         if [ "$REPO_CREATED" = "false" ]; then
-            remove_workflows "$(pwd)"
+            if [ -d "$(pwd)/.github" ]; then
+                echo "   🗑️  Removing .github directory (to preserve existing config)..."
+                rm -rf "$(pwd)/.github"
+                git add -A
+                git commit -m "chore: remove .github for sync" --allow-empty > /dev/null 2>&1 || true
+            fi
         else
-            echo "   ⏭️  Skipping workflows removal (new repository)"
+            echo "   ⏭️  Skipping .github removal (new repository)"
         fi
         
         # 获取最新提交信息
