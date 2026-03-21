@@ -16,6 +16,7 @@
     "vercel-labs/json-render",
     "accomplish-ai/openwork",
     "OpenBMB/MiniCPM-V",
+    "NeteaseCloudMusicApiEnhanced/api-enhanced",
     "kenzok8/small-package"
   ]
 }
